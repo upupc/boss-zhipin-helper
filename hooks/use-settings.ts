@@ -1,0 +1,170 @@
+import { storage } from '#imports'
+import { useEffect, useState } from 'react'
+
+type Theme = 'system' | 'light' | 'dark'
+
+interface AppearanceSettings {
+  theme: Theme
+}
+
+interface SystemSettings {
+  notifications: boolean
+  syncInterval: number
+}
+
+interface UISettings {
+  activeTab: string
+}
+
+interface APISettings {
+  claudeApiKey: string
+  claudeModel: string
+  baseUrl: string
+  maxTokens: number
+  temperature: number
+}
+
+// Define storage items
+const appearanceSettings = storage.defineItem<AppearanceSettings>('local:appearanceSettings', {
+  fallback: {
+    theme: 'system'
+  }
+})
+
+const systemSettings = storage.defineItem<SystemSettings>('local:systemSettings', {
+  fallback: {
+    notifications: true,
+    syncInterval: 15
+  }
+})
+
+const uiSettings = storage.defineItem<UISettings>('local:uiSettings', {
+  fallback: {
+    activeTab: 'home'
+  }
+})
+
+const apiSettings = storage.defineItem<APISettings>('local:apiSettings', {
+  fallback: {
+    claudeApiKey: 'sk-a3zg9ohp8gvmhcfjfbl1031bxqoeqvqh',
+    claudeModel: 'claude-sonnet-4-20250514',
+    baseUrl: 'https://fc-api.keep-learn.top',
+    maxTokens: 1024,
+    temperature: 0.7
+  }
+})
+
+export function useSettings() {
+  const [appearance, setAppearance] = useState<AppearanceSettings>({ theme: 'system' })
+  const [system, setSystem] = useState<SystemSettings>({ notifications: true, syncInterval: 15 })
+  const [ui, setUI] = useState<UISettings>({ activeTab: 'home' })
+  const [api, setAPI] = useState<APISettings>({ claudeApiKey: '', claudeModel: 'claude-3-sonnet-20240229', baseUrl: 'https://api.anthropic.com', maxTokens: 1024, temperature: 0.7 })
+  const [loading, setLoading] = useState(true)
+
+  // Load settings
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const [appearanceData, systemData, uiData, apiData] = await Promise.all([
+          appearanceSettings.getValue(),
+          systemSettings.getValue(),
+          uiSettings.getValue(),
+          apiSettings.getValue()
+        ])
+        
+        setAppearance(appearanceData)
+        setSystem(systemData)
+        setUI(uiData)
+        setAPI(apiData)
+      } catch (error) {
+        console.error('Failed to load settings:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadSettings()
+  }, [])
+
+  // Update appearance settings
+  const updateAppearance = async (updates: Partial<AppearanceSettings>) => {
+    const newSettings = { ...appearance, ...updates }
+    setAppearance(newSettings)
+    try {
+      await appearanceSettings.setValue(newSettings)
+    } catch (error) {
+      console.error('Failed to save appearance settings:', error)
+    }
+  }
+
+  // Update system settings
+  const updateSystem = async (updates: Partial<SystemSettings>) => {
+    const newSettings = { ...system, ...updates }
+    setSystem(newSettings)
+    try {
+      await systemSettings.setValue(newSettings)
+    } catch (error) {
+      console.error('Failed to save system settings:', error)
+    }
+  }
+
+  // Update UI settings
+  const updateUI = async (updates: Partial<UISettings>) => {
+    const newSettings = { ...ui, ...updates }
+    setUI(newSettings)
+    try {
+      await uiSettings.setValue(newSettings)
+    } catch (error) {
+      console.error('Failed to save UI settings:', error)
+    }
+  }
+
+  // Update API settings
+  const updateAPI = async (updates: Partial<APISettings>) => {
+    const newSettings = { ...api, ...updates }
+    setAPI(newSettings)
+    try {
+      await apiSettings.setValue(newSettings)
+    } catch (error) {
+      console.error('Failed to save API settings:', error)
+    }
+  }
+
+  // Reset all settings
+  const resetSettings = async () => {
+    try {
+      await Promise.all([
+        appearanceSettings.removeValue(),
+        systemSettings.removeValue(),
+        uiSettings.removeValue(),
+        apiSettings.removeValue()
+      ])
+      
+      // Reset to default values
+      const defaultAppearance = { theme: 'system' as Theme }
+      const defaultSystem = { notifications: true, syncInterval: 15 }
+      const defaultUI = { activeTab: 'home' }
+      const defaultAPI = { claudeApiKey: '', claudeModel: 'claude-3-sonnet-20240229', baseUrl: 'https://api.anthropic.com', maxTokens: 1024, temperature: 0.7 }
+      
+      setAppearance(defaultAppearance)
+      setSystem(defaultSystem)
+      setUI(defaultUI)
+      setAPI(defaultAPI)
+    } catch (error) {
+      console.error('Failed to reset settings:', error)
+    }
+  }
+
+  return {
+    appearance,
+    system,
+    ui,
+    api,
+    loading,
+    updateAppearance,
+    updateSystem,
+    updateUI,
+    updateAPI,
+    resetSettings
+  }
+} 
