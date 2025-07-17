@@ -17,8 +17,8 @@ interface UISettings {
 }
 
 interface APISettings {
-  claudeApiKey: string
-  claudeModel: string
+  openrouterApiKey: string
+  openrouterModel: string
   baseUrl: string
   maxTokens: number
   temperature: number
@@ -46,9 +46,9 @@ const uiSettings = storage.defineItem<UISettings>('local:uiSettings', {
 
 const apiSettings = storage.defineItem<APISettings>('local:apiSettings', {
   fallback: {
-    claudeApiKey: 'sk-a3zg9ohp8gvmhcfjfbl1031bxqoeqvqh',
-    claudeModel: 'claude-sonnet-4-20250514',
-    baseUrl: 'https://fc-api.keep-learn.top',
+    openrouterApiKey: '',
+    openrouterModel: 'anthropic/claude-3.5-sonnet',
+    baseUrl: 'https://openrouter.ai/api/v1',
     maxTokens: 1024,
     temperature: 0.7
   }
@@ -58,7 +58,7 @@ export function useSettings() {
   const [appearance, setAppearance] = useState<AppearanceSettings>({ theme: 'system' })
   const [system, setSystem] = useState<SystemSettings>({ notifications: true, syncInterval: 15 })
   const [ui, setUI] = useState<UISettings>({ activeTab: 'home' })
-  const [api, setAPI] = useState<APISettings>({ claudeApiKey: '', claudeModel: 'claude-3-sonnet-20240229', baseUrl: 'https://api.anthropic.com', maxTokens: 1024, temperature: 0.7 })
+  const [api, setAPI] = useState<APISettings>({ openrouterApiKey: '', openrouterModel: 'anthropic/claude-3.5-sonnet', baseUrl: 'https://openrouter.ai/api/v1', maxTokens: 1024, temperature: 0.7 })
   const [loading, setLoading] = useState(true)
 
   // Load settings
@@ -144,7 +144,7 @@ export function useSettings() {
       const defaultAppearance = { theme: 'system' as Theme }
       const defaultSystem = { notifications: true, syncInterval: 15 }
       const defaultUI = { activeTab: 'home' }
-      const defaultAPI = { claudeApiKey: '', claudeModel: 'claude-3-sonnet-20240229', baseUrl: 'https://api.anthropic.com', maxTokens: 1024, temperature: 0.7 }
+      const defaultAPI = { openrouterApiKey: '', openrouterModel: 'anthropic/claude-3.5-sonnet', baseUrl: 'https://openrouter.ai/api/v1', maxTokens: 1024, temperature: 0.7 }
       
       setAppearance(defaultAppearance)
       setSystem(defaultSystem)

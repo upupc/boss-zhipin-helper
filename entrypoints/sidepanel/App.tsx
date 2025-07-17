@@ -2,12 +2,6 @@ import { useAppConfig } from '#imports'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -17,21 +11,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useSettings } from '@/hooks/use-settings'
 import { useTheme } from '@/hooks/use-theme'
 import { cn } from '@/lib/utils'
-import { ClaudeMessage, sendMessageToClaude, ClaudeAPIError } from '@/lib/claude-api'
+import { OpenRouterMessage, sendMessageToOpenRouter, OpenRouterAPIError } from '@/lib/openrouter-api'
 import {
-  Calendar,
   Heart,
   House,
   Key,
-  Mail,
   MessageSquare,
   Monitor,
   Moon,
   Send,
   Settings,
   Sun,
-  User,
-  AlertCircle
+  AlertCircle,
+  Filter,
+  Users
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
@@ -41,6 +34,7 @@ interface ChatMessage {
   sender: 'user' | 'bot'
   timestamp: Date
 }
+
 
 function App() {
   const config = useAppConfig()
@@ -56,6 +50,10 @@ function App() {
   const [isTyping, setIsTyping] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  
+  // Filter state
+  const [filteredGeeks, setFilteredGeeks] = useState<{ name: string; content: string; isJava: boolean; hasButton: boolean; buttonIndex: number }[]>([])
+  const [isFiltering, setIsFiltering] = useState(false)
 
   const themeOptions = [
     { value: 'system', label: 'System', icon: Monitor },
@@ -72,6 +70,32 @@ function App() {
 
   const handleTabChange = (value: string) => {
     updateUI({ activeTab: value })
+  }
+  
+  // Filter geeks from BOSS page
+  const handleFilterGeeks = async () => {
+    setIsFiltering(true)
+    setFilteredGeeks([])
+    
+    try {
+      // Send message to content script
+      const tabs = await browser.tabs.query({ url: '*://*.zhipin.com/*' })
+      if (tabs.length === 0) {
+        alert('请先打开BOSS直聘页面')
+        setIsFiltering(false)
+        return
+      }
+      
+      const response = await browser.tabs.sendMessage(tabs[0].id!, { action: 'filterGeeks' })
+      if (response && response.geeks) {
+        setFilteredGeeks(response.geeks)
+      }
+    } catch (error) {
+      console.error('Error filtering geeks:', error)
+      alert('筛选失败，请确保在BOSS直聘页面')
+    } finally {
+      setIsFiltering(false)
+    }
   }
 
   // Chat functions
@@ -103,12 +127,12 @@ function App() {
     setInputMessage('')
     setIsTyping(true)
 
-    // Call Claude API
+    // Call OpenRouter API
     try {
-      if (!api.claudeApiKey) {
+      if (!api.openrouterApiKey) {
         const errorMessage: ChatMessage = {
           id: (Date.now() + 1).toString(),
-          content: 'Please configure your Claude API key in the Settings tab to start chatting.',
+          content: 'Please configure your OpenRouter API key in the Settings tab to start chatting.',
           sender: 'bot',
           timestamp: new Date()
         }
@@ -117,22 +141,22 @@ function App() {
         return
       }
 
-      // Convert our messages to Claude format
-      const claudeMessages: ClaudeMessage[] = messages.map(msg => ({
+      // Convert our messages to OpenRouter format
+      const openrouterMessages: OpenRouterMessage[] = messages.map(msg => ({
         role: msg.sender === 'user' ? 'user' : 'assistant',
         content: msg.content
       }))
       
       // Add the new user message
-      claudeMessages.push({
+      openrouterMessages.push({
         role: 'user',
         content: userMessage.content
       })
 
-      const response = await sendMessageToClaude(claudeMessages, {
-        apiKey: api.claudeApiKey,
+      const response = await sendMessageToOpenRouter(openrouterMessages, {
+        apiKey: api.openrouterApiKey,
         baseUrl: api.baseUrl,
-        model: api.claudeModel,
+        model: api.openrouterModel,
         maxTokens: api.maxTokens,
         temperature: api.temperature
       })
@@ -148,9 +172,9 @@ function App() {
     } catch (error) {
       let errorContent = 'Sorry, I encountered an error while processing your message.'
       
-      if (error instanceof ClaudeAPIError) {
+      if (error instanceof OpenRouterAPIError) {
         if (error.status === 401) {
-          errorContent = 'Invalid API key. Please check your Claude API key in Settings.'
+          errorContent = 'Invalid API key. Please check your OpenRouter API key in Settings.'
         } else if (error.status === 429) {
           errorContent = 'Rate limit exceeded. Please try again later.'
         } else {
@@ -194,7 +218,7 @@ function App() {
             <Heart className="h-5 w-5 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="font-semibold text-lg">Sidepanel Template</h1>
+            <h1 className="font-semibold text-lg">BOSS直聘小助手</h1>
             <p className="text-sm text-muted-foreground">
               WXT + Tailwind CSS 4.0 + shadcn/ui
             </p>
@@ -212,13 +236,6 @@ function App() {
             >
               <House className="h-4 w-4" />
               Home
-            </TabsTrigger>
-            <TabsTrigger
-              value="profile"
-              className="data-[state=active]:after:bg-primary relative rounded-none py-2 px-4 flex items-center gap-2 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 data-[state=active]:bg-transparent data-[state=active]:shadow-none flex-1"
-            >
-              <User className="h-4 w-4" />
-              Profile
             </TabsTrigger>
             <TabsTrigger
               value="chat"
@@ -241,124 +258,74 @@ function App() {
               <div className="space-y-4 p-4">
                 <div>
                   <h2 className="text-base font-semibold flex items-center gap-2 mb-2">
-                    Welcome to Sidepanel Template
+                    Welcome to BOSS直聘小助手
                     <Badge variant="secondary">v1.0.0</Badge>
                   </h2>
                   <p className="text-muted-foreground mb-4">
-                    A modern browser extension template built with WXT, Tailwind
-                    CSS 4.0, and shadcn/ui components.
+                    帮助你一键完成打招呼.
                   </p>
-                  <div className="grid gap-4">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-base">
-                          🚀 Modern Stack
-                        </CardTitle>
-                        <CardDescription>
-                          Built with WXT, React, TypeScript, and Tailwind CSS
-                          4.0 for the best developer experience.
-                        </CardDescription>
-                      </CardHeader>
-                    </Card>
-
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-base">
-                          🎨 Beautiful Design
-                        </CardTitle>
-                        <CardDescription>
-                          Clean and accessible UI components from shadcn/ui
-                          library.
-                        </CardDescription>
-                      </CardHeader>
-                    </Card>
-
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-base">
-                          ⚡ Fast Development
-                        </CardTitle>
-                        <CardDescription>
-                          Hot reload and modern build tools for rapid
-                          development.
-                        </CardDescription>
-                      </CardHeader>
-                    </Card>
+                  <div className="flex flex-col gap-4 items-center">
+                    <Button
+                      size="lg"
+                      onClick={() => window.open('https://www.zhipin.com/web/chat/recommend', '_blank')}
+                      className="px-8 py-3"
+                    >
+                      打开BOSS直聘
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      onClick={handleFilterGeeks}
+                      disabled={isFiltering}
+                      className="px-6 py-2 flex items-center gap-2"
+                    >
+                      <Filter className="h-4 w-4" />
+                      {isFiltering ? '筛选并自动打招呼中...' : '筛选候选人'}
+                    </Button>
+                    
+                    {isFiltering && (
+                      <p className="text-xs text-muted-foreground text-center mt-2">
+                        正在筛选候选人并自动向Java开发者打招呼，请耐心等待...
+                      </p>
+                    )}
                   </div>
-                </div>
-              </div>
-            </ScrollArea>
-          </TabsContent>
-
-          <TabsContent value="profile" className="flex-1 overflow-hidden">
-            <ScrollArea className="h-full">
-              <div className="space-y-8 p-4">
-                {/* Profile Section */}
-                <div className="text-center space-y-4">
-                  <Avatar className="h-20 w-20 mx-auto ring-2 ring-offset-2 ring-primary/10">
-                    <AvatarImage
-                      src="https://pbs.twimg.com/profile_images/1593304942210478080/TUYae5z7_400x400.jpg"
-                      alt="User Avatar"
-                    />
-                    <AvatarFallback className="text-lg font-semibold">
-                      SC
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="space-y-2">
-                    <h2 className="text-xl font-semibold">Shadcn</h2>
-                    <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                      <Mail className="h-4 w-4" />
-                      <span>shadcn@example.com</span>
+                  
+                  {/* Filtered Results */}
+                  {filteredGeeks.length > 0 && (
+                    <div className="mt-6">
+                      <h3 className="text-base font-semibold flex items-center gap-2 mb-3">
+                        <Users className="h-4 w-4" />
+                        筛选结果 ({filteredGeeks.length})
+                      </h3>
+                      {filteredGeeks.some(g => g.isJava && g.hasButton) && (
+                        <div className="mb-3 p-2 bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 rounded-md">
+                          <p className="text-sm text-orange-700 dark:text-orange-300">
+                            ✅ 已自动向 {filteredGeeks.filter(g => g.isJava && g.hasButton).length} 位Java候选人打招呼
+                          </p>
+                        </div>
+                      )}
+                      <div className="space-y-3">
+                        {filteredGeeks.map((geek, index) => (
+                          <div key={index} className="border rounded-lg p-3 hover:bg-muted/50 transition-colors">
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="font-semibold">{geek.name}</h4>
+                              <div className="flex items-center gap-2">
+                                {geek.isJava && (
+                                  <Badge className="text-xs bg-orange-500 text-white">Java</Badge>
+                                )}
+                                {geek.hasButton && (
+                                  <Badge variant="outline" className="text-xs">
+                                    可打招呼
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{geek.content}</p>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <Badge variant="secondary" className="font-medium">
-                      Premium User
-                    </Badge>
-                  </div>
-                </div>
-
-                <Separator />
-
-                {/* Account Details */}
-                <div className="space-y-4">
-                  <h3 className="text-base font-semibold flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
-                    Account Details
-                  </h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between py-2">
-                      <span className="text-sm text-muted-foreground">
-                        Member Since
-                      </span>
-                      <span className="text-sm font-medium">July 2025</span>
-                    </div>
-                    <div className="flex items-center justify-between py-2">
-                      <span className="text-sm text-muted-foreground">
-                        Last Login
-                      </span>
-                      <span className="text-sm font-medium">Today</span>
-                    </div>
-                    <div className="flex items-center justify-between py-2">
-                      <span className="text-sm text-muted-foreground">
-                        Status
-                      </span>
-                      <Badge
-                        variant="outline"
-                        className="text-green-600 border-green-600"
-                      >
-                        Active
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-
-                <Separator />
-
-                {/* Actions */}
-                <div className="space-y-3">
-                  <Button className="w-full">Edit Profile</Button>
-                  <Button variant="outline" className="w-full">
-                    Change Password
-                  </Button>
+                  )}
                 </div>
               </div>
             </ScrollArea>
@@ -375,7 +342,7 @@ function App() {
                       Ask me anything about your extension
                     </p>
                   </div>
-                  {!api.claudeApiKey && (
+                  {!api.openrouterApiKey && (
                     <div className="flex items-center gap-1 text-amber-600">
                       <AlertCircle className="h-4 w-4" />
                       <span className="text-xs">API key required</span>
@@ -617,15 +584,15 @@ function App() {
 
                 <Separator />
 
-                {/* Claude API Settings */}
+                {/* OpenRouter API Settings */}
                 <div className="space-y-4">
                   <div>
                     <h3 className="text-lg font-semibold flex items-center gap-2">
                       <Key className="h-4 w-4" />
-                      Claude API Settings
+                      OpenRouter API Settings
                     </h3>
                     <p className="text-xs text-muted-foreground mb-4">
-                      Configure your Claude API credentials
+                      Configure your OpenRouter API credentials
                     </p>
                   </div>
 
@@ -637,20 +604,20 @@ function App() {
                       <Input
                         id="api-key"
                         type="password"
-                        value={api.claudeApiKey}
-                        onChange={(e) => updateAPI({ claudeApiKey: e.target.value })}
-                        placeholder="sk-ant-api..."
+                        value={api.openrouterApiKey}
+                        onChange={(e) => updateAPI({ openrouterApiKey: e.target.value })}
+                        placeholder="sk-or-..."
                         className="mt-1"
                       />
                       <p className="text-xs text-muted-foreground mt-1">
                         Get your API key from{' '}
                         <a
-                          href="https://console.anthropic.com/settings/keys"
+                          href="https://openrouter.ai/keys"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-primary hover:underline"
                         >
-                          console.anthropic.com
+                          openrouter.ai
                         </a>
                       </p>
                     </div>
@@ -666,11 +633,11 @@ function App() {
                         type="url"
                         value={api.baseUrl}
                         onChange={(e) => updateAPI({ baseUrl: e.target.value })}
-                        placeholder="https://api.anthropic.com"
+                        placeholder="https://openrouter.ai/api/v1"
                         className="mt-1"
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        Custom API endpoint (optional). Leave default for official API.
+                        OpenRouter API endpoint. Default: https://openrouter.ai/api/v1
                       </p>
                     </div>
 
@@ -682,12 +649,16 @@ function App() {
                       </Label>
                       <select
                         id="model"
-                        value={api.claudeModel}
-                        onChange={(e) => updateAPI({ claudeModel: e.target.value })}
+                        value={api.openrouterModel}
+                        onChange={(e) => updateAPI({ openrouterModel: e.target.value })}
                         className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       >
-                        <option value="claude-sonnet-4-20250514">Claude 4 Sonnet</option>
-                        <option value="claude-opus-4-20250514">Claude 4 Opus</option>
+                        <option value="anthropic/claude-sonnet-4-20250514">Claude 4 Sonnet</option>
+                        <option value="anthropic/claude-opus-4-20250514">Claude 4 Opus</option>
+                        <option value="openai/gpt-4o">GPT-4o</option>
+                        <option value="openai/gpt-4-turbo">GPT-4 Turbo</option>
+                        <option value="google/gemini-2.5-flash">Gemini 2.5 Flash</option>
+                        <option value="google/gemini-2.5-pro">Gemini 2.5 Pro</option>
                       </select>
                     </div>
 
