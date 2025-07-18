@@ -1,176 +1,168 @@
-# Sidepanel Extension Template
+# Boss直聘助手 (Boss Zhipin Helper)
 
-A modern browser extension template with sidepanel support, built with WXT + Tailwind CSS 4.0 + shadcn/ui.
+一个强大的浏览器扩展，为Boss直聘招聘平台提供自动化候选人筛选和打招呼功能，并集成了AI聊天助手。
 
-## Features
+## ✨ 功能特性
 
-- 🖥️ **Sidepanel Interface** - Click extension icon to open browser sidepanel
-- ⚡ **WXT Framework** - Next-generation Web Extension development framework
-- ⚛️ **React** - Modern UI framework with TypeScript support
-- 🎨 **Tailwind CSS 4.0** - Latest utility-first CSS framework
-- 🛠️ **shadcn/ui Ready** - Pre-configured for beautiful, accessible React components
-- 🌙 **Theme Management** - System/Light/Dark theme support
-- 💾 **Local Storage** - Persistent data storage with WXT Storage API
-- ⚙️ **Runtime Configuration** - Built-in runtime config system with type safety
-- 🔧 **TypeScript** - Full type safety and developer experience
-- 🎯 **Modern Development** - Hot reload, modern build tools
+### 🎯 智能候选人筛选
+- 自动加载并筛选最多200个候选人
+- 支持自定义关键词过滤（支持多个关键词，逗号分隔）
+- 智能识别可联系的候选人（带有"打招呼"按钮）
+- 实时显示筛选结果和状态
 
-## Demo
+### 🤖 自动打招呼系统
+- 模拟人类行为的随机延迟（1-5秒）
+- 平滑滚动到按钮位置再点击
+- 实时状态跟踪（待处理/已打招呼/失败）
+- 可随时停止自动打招呼进程
 
-![Extension Demo](public/demo.gif)
+### 💬 AI聊天助手
+- 集成多种AI模型（Claude、GPT-4、Gemini等）
+- 支持流式响应
+- 可自定义模型参数（温度、最大令牌数）
+- 通过OpenRouter API提供服务
 
-*Watch how the sidepanel extension works: click the extension icon to open the sidepanel interface.*
+### ⚙️ 个性化设置
+- 主题切换（系统/浅色/深色）
+- 通知偏好设置
+- 自动同步间隔配置
+- API密钥和模型选择
 
-## Getting Started
+## 🚀 快速开始
 
-### Prerequisites
+### 前置要求
 
 - Node.js 18+
-- pnpm (recommended) or npm
+- pnpm 9.10.0+
+- 现代浏览器（Chrome、Firefox、Edge、Safari）
 
-### Installation
-
-1. **Clone or use this template**
-   ```bash
-   git clone <repository-url>
-   cd sidepanel-extension-template
-   ```
-
-2. **Install dependencies**
-   ```bash
-   pnpm install
-   ```
-
-3. **Start development**
-   ```bash
-   pnpm dev
-   ```
-
-4. **Load extension in browser**
-   - Open `chrome://extensions/`
-   - Enable "Developer mode"
-   - Click "Load unpacked extension"
-   - Select the `.output/chrome-mv3` folder
-
-### Usage
-
-1. Click the extension icon in the browser toolbar
-2. The sidepanel will open on the right side
-3. Start customizing the template for your needs
-
-## Project Structure
-
-```
-sidepanel-extension-template/
-├── entrypoints/           # Extension entry points
-│   ├── background.ts      # Background script
-│   ├── content.ts         # Content script (optional)
-│   └── sidepanel/         # Sidepanel UI
-│       ├── App.tsx        # Main React app
-│       ├── index.html     # HTML template
-│       └── main.tsx       # React entry point
-├── components/            # React components
-│   └── ui/                # shadcn/ui components
-├── lib/                   # Utility functions
-│   └── utils.ts           # Common utilities
-├── hooks/                 # Custom React hooks
-│   ├── use-theme.ts       # Theme management hook
-│   └── use-settings.ts    # Settings storage hook
-├── assets/                # Static assets
-├── public/                # Public assets (icons, etc.)
-├── app.config.ts          # Runtime configuration
-├── components.json        # shadcn/ui configuration
-├── wxt.config.ts          # WXT configuration
-└── package.json           # Dependencies and scripts
-```
-
-## Adding shadcn/ui Components
-
-This template is pre-configured for shadcn/ui. To add components:
+### 安装依赖
 
 ```bash
-# Example: Add a button component
-pnpm dlx shadcn@latest add button
-
-# Example: Add a dialog component
-pnpm dlx shadcn@latest add dialog
+pnpm install
 ```
 
-The components will be automatically added to `components/ui/` with proper styling.
-
-## Development Commands
+### 开发模式
 
 ```bash
-# Development mode with hot reload (Chrome by default)
+# Chrome（默认）
 pnpm dev
 
-# Development for specific browsers
-pnpm dev:chrome
+# 其他浏览器
 pnpm dev:firefox
 pnpm dev:edge
 pnpm dev:safari
+```
 
-# Build for production (Chrome by default)
+### 生产构建
+
+```bash
+# Chrome（默认）
 pnpm build
 
-# Build for specific browsers
-pnpm build:chrome
+# 其他浏览器
 pnpm build:firefox
 pnpm build:edge
 pnpm build:safari
+```
 
-# Create extension zip files
+### 打包扩展
+
+```bash
+# 所有浏览器
 pnpm zip
+
+# 特定浏览器
 pnpm zip:chrome
 pnpm zip:firefox
 pnpm zip:edge
 pnpm zip:safari
-
-# Type checking
-pnpm compile
 ```
 
-## Customization
+## 📁 项目结构
 
-### Styling
+```
+boss-zhipin-helper/
+├── entrypoints/
+│   ├── background.ts      # 后台服务脚本
+│   ├── content.ts         # 内容注入脚本
+│   └── sidepanel/         # 侧边栏UI应用
+│       ├── main.tsx       # React入口
+│       ├── App.tsx        # 主应用组件
+│       └── index.html     # HTML模板
+├── components/
+│   ├── tabs/              # 标签页组件
+│   │   ├── home-tab.tsx   # 主页（筛选和打招呼）
+│   │   ├── chat-tab.tsx   # AI聊天界面
+│   │   └── settings-tab.tsx # 设置页面
+│   └── ui/                # shadcn/ui组件
+├── hooks/
+│   ├── use-theme.ts       # 主题管理
+│   └── use-settings.ts    # 设置管理
+├── lib/
+│   ├── openrouter-api.ts  # OpenRouter API集成
+│   └── utils.ts           # 工具函数
+├── assets/                # 样式和静态资源
+├── public/                # 扩展图标
+└── wxt.config.ts          # WXT配置
+```
 
-- Edit `assets/tailwind.css` for global styles
-- Modify theme colors in `components.json`
-- Tailwind CSS 4.0 configuration in `wxt.config.ts`
+## 🔧 配置说明
 
-### Extension Configuration
+### API配置
 
-- Update manifest permissions in `wxt.config.ts`
-- Modify extension metadata in `package.json`
-- Change icons in `public/icon/`
+使用AI聊天功能需要配置OpenRouter API密钥：
 
-### Sidepanel Content
+1. 访问 [OpenRouter](https://openrouter.ai/) 获取API密钥
+2. 在扩展设置页面中填入API密钥
+3. 选择偏好的AI模型
 
-- Edit `entrypoints/sidepanel/App.tsx` for main UI
-- Add new routes/pages as needed
-- Extend with additional React components
+### 筛选关键词配置
 
-## Browser Support
+在设置页面配置筛选关键词，多个关键词用逗号分隔，例如：
+```
+Java,Spring,微服务,后端开发
+```
 
-This extension supports all major browsers through WXT's universal browser compatibility:
+## 🔐 安全说明
 
-- ✅ **Chrome** (Manifest V3) - `pnpm dev:chrome`, `pnpm build:chrome`
-- ✅ **Firefox** (Manifest V2) - `pnpm dev:firefox`, `pnpm build:firefox`
-- ✅ **Edge** (Manifest V3) - `pnpm dev:edge`, `pnpm build:edge`
-- ✅ **Safari** (Manifest V2) - `pnpm dev:safari`, `pnpm build:safari`
-- ✅ **Other Chromium-based browsers** (Opera, Brave, etc.)
+- API密钥仅存储在本地浏览器存储中
+- 扩展权限严格限制在必要范围内
+- 所有外部API调用都经过错误处理
+- 不会收集或上传任何用户数据
 
-## License
+## 🛠️ 技术栈
 
-MIT License - feel free to use this template for your projects!
+- **框架**: [WXT](https://wxt.dev/) - 现代化的浏览器扩展开发框架
+- **UI框架**: React 19 + TypeScript
+- **样式**: Tailwind CSS 4.0 + shadcn/ui
+- **AI集成**: OpenAI SDK + OpenRouter API
+- **构建工具**: Vite + TypeScript
 
-## Contributing
+## 📝 开发注意事项
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+1. **组件开发**: 遵循shadcn/ui的模式保持一致性
+2. **状态管理**: 使用`useSettings` hook管理持久化数据
+3. **主题支持**: 使用CSS变量配合oklch色彩空间
+4. **扩展API**: 使用WXT的自动导入（无需手动导入`browser`）
+5. **错误处理**: 始终优雅处理API失败并给予用户反馈
+6. **模拟人类行为**: 在自动化操作中添加随机延迟避免检测
 
----
+## 🤝 贡献指南
 
-Built with ❤️ using [WXT](https://wxt.dev), [Tailwind CSS](https://tailwindcss.com), and [shadcn/ui](https://ui.shadcn.com)
+欢迎提交Issue和Pull Request！
+
+在提交PR前，请确保：
+- 代码通过类型检查：`pnpm compile`
+- 遵循现有的代码风格和模式
+- 测试在目标浏览器中的功能
+
+## 📄 许可证
+
+本项目基于 MIT 许可证开源。
+
+## 🙏 致谢
+
+- [WXT](https://wxt.dev/) - 优秀的浏览器扩展开发框架
+- [shadcn/ui](https://ui.shadcn.com/) - 精美的UI组件库
+- [OpenRouter](https://openrouter.ai/) - 统一的AI模型API服务

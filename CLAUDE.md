@@ -1,6 +1,10 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with the Boss直聘助手 (Boss Zhipin Helper) extension codebase.
+
+## Project Overview
+
+Boss直聘助手 is a browser extension that automates candidate filtering and greeting on the Boss直聘 recruitment platform. It identifies Java developers among candidates and automatically initiates contact with them, while also providing an AI-powered chat assistant.
 
 ## Development Commands
 
@@ -34,56 +38,204 @@ Type checking:
 pnpm compile
 ```
 
-## Architecture Overview
+Linting and formatting:
+```bash
+# Currently, no specific lint commands are configured
+# Consider adding ESLint and Prettier for code quality
+```
 
-This is a modern browser extension template using WXT (Web Extension Toolkit) with a sidepanel UI. The extension architecture consists of:
+## File Structure and Purpose
 
-1. **Entry Points** (`/entrypoints/`):
-   - `background.ts`: Manages sidepanel lifecycle and browser action clicks
-   - `sidepanel/`: Contains the main React application
-   - `content.ts`: Minimal content script (only targets Google)
+### Core Entry Points
 
-2. **State Management**:
-   - Uses custom hooks with WXT storage API for persistent settings
-   - Three storage namespaces: `appearance`, `system`, `ui`
-   - Settings are stored locally and synchronized across extension lifecycle
+#### `/entrypoints/background.ts`
+- **Purpose**: Manages the extension's background service worker
+- **Functionality**: 
+  - Handles browser action clicks to open/focus the sidepanel
+  - Manages sidepanel lifecycle
+  - Sets default panel behavior
 
-3. **Theme System**:
-   - Supports system/light/dark themes via `use-theme.ts` hook
-   - Uses CSS variables with oklch color space for theming
-   - Theme preference is persisted and applied on startup
+#### `/entrypoints/content.ts`
+- **Purpose**: Content script injected into Boss直聘 pages
+- **Functionality**:
+  - Matches URLs: `*://*.zhipin.com/*`
+  - Contains `filterAndGreetCandidates()` function that:
+    - Searches for candidate cards in the "recommendFrame" iframe
+    - Automatically scrolls to load more candidates (up to 200)
+    - Filters candidates by customizable keywords (comma-separated)
+    - Only selects candidates with "打招呼" (greet) button available
+    - Stores button references and candidate data globally
+  - Contains `doGreeting()` function that:
+    - Implements human-like behavior with 1-5 second random delays
+    - Scrolls button into view before clicking (using `foucsButton()`)
+    - Updates candidate status (pending/greeted/disabled)
+  - Listens for two message types from sidepanel:
+    - `filterGeeks`: Triggers candidate filtering
+    - `doGreeting`: Executes individual greeting action
 
-4. **UI Components**:
-   - Built with shadcn/ui components and Radix UI primitives
-   - Three main tabs: Home, Profile, Settings
-   - All components are in `/components/ui/` and follow shadcn/ui patterns
+#### `/entrypoints/sidepanel/`
+- **Purpose**: Main UI application that runs in browser sidepanel
+- **Key Files**:
+  - `main.tsx`: React app entry point with providers
+  - `App.tsx`: Main component with three tabs (Home, Chat, Settings)
+  - `index.html`: HTML template for sidepanel
 
-5. **Configuration**:
-   - Runtime config in `app.config.ts` with TypeScript module augmentation
-   - WXT config in `wxt.config.ts` handles extension manifest generation
-   - Tailwind CSS 4.0 configuration in `assets/tailwind.css`
+### Components
 
-## Key Technical Details
+#### `/components/tabs/`
+- **home-tab.tsx**: 
+  - Launch Boss直聘 website button
+  - Filter candidates button that triggers content script
+  - Display filtered Java developer results
+  
+- **chat-tab.tsx**:
+  - AI chat interface using OpenRouter API
+  - Message history display
+  - Input field with keyboard shortcuts
+  - Model selection and streaming responses
 
-- **Framework**: WXT + React 19 + TypeScript + Tailwind CSS 4.0
-- **Extension Type**: Sidepanel (not popup) - opens in browser sidebar
-- **Browser Support**: Chrome, Firefox, Edge, Safari (via WXT)
-- **Storage**: Uses WXT storage API (`wxt/storage`) for persistent settings
-- **Icons**: Uses Lucide React for consistent iconography
-- **Styling**: Tailwind CSS 4.0 with @tailwindcss/vite for JIT compilation
+- **settings-tab.tsx**:
+  - Theme selection (System/Light/Dark)
+  - Notification preferences
+  - Auto-sync interval configuration
+  - API settings (OpenRouter API key, model selection, parameters)
 
-## Important Patterns
+#### `/components/ui/`
+- **Purpose**: Reusable UI components from shadcn/ui
+- **Key Components**: Button, Card, Dialog, Input, Label, Select, Separator, Switch, Tabs, Textarea, Sonner (toast)
 
-1. **Adding New Components**: Use shadcn/ui CLI or follow existing patterns in `/components/ui/`
-2. **Settings Storage**: Use the `useSettings` hook to persist user preferences
-3. **Theme Integration**: Use the `useTheme` hook and follow the CSS variable patterns
-4. **Type Safety**: All configuration and settings have TypeScript interfaces
-5. **Extension APIs**: Use WXT's auto-imports for browser APIs (no need to import `browser`)
+### Hooks
 
-## Development Notes
+#### `/hooks/use-theme.ts`
+- **Purpose**: Theme management hook
+- **Functionality**: Handles system/light/dark theme switching with persistence
 
-- The extension uses a sidepanel UI, not a popup - it opens in the browser's sidebar
-- Hot reload is enabled in development mode for rapid iteration
-- The background script handles all sidepanel management logic
-- Settings are persisted using WXT's storage API with proper TypeScript types
-- All UI components follow shadcn/ui patterns for consistency
+#### `/hooks/use-settings.ts`
+- **Purpose**: Centralized settings management
+- **Functionality**: 
+  - Manages four storage namespaces: appearance, system, ui, api
+  - Provides getters/setters for all app settings
+  - Ensures persistence across sessions
+
+### Library Code
+
+#### `/lib/openrouter-api.ts`
+- **Purpose**: OpenRouter API integration
+- **Functionality**:
+  - Wraps OpenAI SDK for OpenRouter compatibility
+  - Handles streaming chat completions
+  - Error handling and response formatting
+
+#### `/lib/utils.ts`
+- **Purpose**: Utility functions
+- **Functionality**: Tailwind CSS class name merging utility
+
+### Configuration Files
+
+#### `wxt.config.ts`
+- **Purpose**: WXT extension configuration
+- **Key Settings**:
+  - Manifest configuration for multiple browsers
+  - Permission declarations: sidePanel, storage, tabs
+  - Host permissions for Boss直聘 domains
+  - Icon and entry point definitions
+
+#### `app.config.ts`
+- **Purpose**: Application runtime configuration
+- **Content**: App name and metadata with TypeScript support
+
+#### `manifest.json`
+- **Purpose**: Browser extension manifest (generated by WXT)
+- **Key Elements**: Extension metadata, permissions, content scripts
+
+#### `package.json`
+- **Purpose**: Node.js project configuration
+- **Notable Dependencies**:
+  - WXT for extension development
+  - React 19 + TypeScript
+  - Tailwind CSS 4.0
+  - OpenAI SDK for API integration
+  - Radix UI + shadcn/ui components
+
+### Asset Files
+
+#### `/assets/`
+- `tailwind.css`: Tailwind CSS 4.0 configuration and custom styles
+- `*.css`: Component-specific styles
+- Icons and images for the extension
+
+#### `/public/`
+- Extension icons in various sizes
+- Static assets served directly
+
+### Type Definitions
+
+#### `/types/`
+- **wxt.d.ts**: WXT framework type definitions
+- **app-config.d.ts**: App configuration types
+
+## Key Features Implementation
+
+### 1. Automated Candidate Filtering
+- **Location**: `entrypoints/content.ts`
+- **Process**:
+  1. Finds iframe with name "recommendFrame"
+  2. Scrolls iframe to load more candidates (max 200, with 2-second delays)
+  3. Queries all `.geek-card-wrap` elements
+  4. Filters by customizable keywords (case-insensitive, comma-separated)
+  5. Only selects candidates with active "打招呼" buttons
+  6. Returns filtered candidate list to sidepanel
+
+### 2. AI Chat Assistant
+- **Location**: `components/tabs/chat-tab.tsx` + `lib/openrouter-api.ts`
+- **Features**:
+  - Multiple AI model support (Claude, GPT-4, Gemini)
+  - Streaming responses
+  - Customizable parameters (temperature, max tokens)
+  - Error handling and retry logic
+
+### 3. Automated Greeting System
+- **Location**: `entrypoints/content.ts` + `components/tabs/home-tab.tsx`
+- **Features**:
+  - Individual greeting control with 1-5 second random delays
+  - Smooth scrolling to center buttons in viewport
+  - Real-time status updates (pending/greeted/failed)
+  - Stop functionality to halt ongoing greetings
+  - Visual progress tracking in the UI
+
+### 4. Persistent Settings
+- **Location**: `hooks/use-settings.ts`
+- **Storage Structure**:
+  ```typescript
+  - appearance: { theme }
+  - system: { notifications, autoSyncInterval, filterKeywords }
+  - ui: { activeTab }
+  - api: { apiKey, model, temperature, maxTokens }
+  ```
+
+## Development Best Practices
+
+1. **Component Development**: Follow shadcn/ui patterns for consistency
+2. **State Management**: Use the `useSettings` hook for persistent data
+3. **Theme Support**: Use CSS variables with oklch color space
+4. **Extension APIs**: Use WXT's auto-imports (no need to import `browser`)
+5. **Content Script Communication**: Use browser messaging API for sidepanel-content script communication
+6. **Error Handling**: Always handle API failures gracefully with user feedback
+7. **Human-like Behavior**: Add random delays in automation to avoid detection
+8. **Global State in Content Script**: Use `globalThis` for sharing data between async operations
+9. **Iframe Manipulation**: Always check iframe existence and permissions before accessing content
+10. **Async Operations**: Return `true` in message listeners when handling async responses
+
+## Security Considerations
+
+- API keys are stored locally in browser storage (never in code)
+- Content scripts have limited permissions
+- Host permissions are restricted to necessary domains
+- All external API calls go through proper error handling
+
+## Browser Compatibility
+
+The extension supports multiple browsers through WXT:
+- Chrome/Edge: Manifest V3
+- Firefox/Safari: Manifest V2
+- Browser-specific builds are handled automatically by WXT

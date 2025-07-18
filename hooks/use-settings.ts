@@ -10,6 +10,7 @@ interface AppearanceSettings {
 interface SystemSettings {
   notifications: boolean
   syncInterval: number
+  filterKeywords: string
 }
 
 interface UISettings {
@@ -34,7 +35,8 @@ const appearanceSettings = storage.defineItem<AppearanceSettings>('local:appeara
 const systemSettings = storage.defineItem<SystemSettings>('local:systemSettings', {
   fallback: {
     notifications: true,
-    syncInterval: 15
+    syncInterval: 15,
+    filterKeywords: 'Java'
   }
 })
 
@@ -56,7 +58,7 @@ const apiSettings = storage.defineItem<APISettings>('local:apiSettings', {
 
 export function useSettings() {
   const [appearance, setAppearance] = useState<AppearanceSettings>({ theme: 'system' })
-  const [system, setSystem] = useState<SystemSettings>({ notifications: true, syncInterval: 15 })
+  const [system, setSystem] = useState<SystemSettings>({ notifications: true, syncInterval: 15, filterKeywords: 'Java' })
   const [ui, setUI] = useState<UISettings>({ activeTab: 'home' })
   const [api, setAPI] = useState<APISettings>({ openrouterApiKey: '', openrouterModel: 'anthropic/claude-3.5-sonnet', baseUrl: 'https://openrouter.ai/api/v1', maxTokens: 1024, temperature: 0.7 })
   const [loading, setLoading] = useState(true)
@@ -142,7 +144,7 @@ export function useSettings() {
       
       // Reset to default values
       const defaultAppearance = { theme: 'system' as Theme }
-      const defaultSystem = { notifications: true, syncInterval: 15 }
+      const defaultSystem = { notifications: true, syncInterval: 15, filterKeywords: 'Java' }
       const defaultUI = { activeTab: 'home' }
       const defaultAPI = { openrouterApiKey: '', openrouterModel: 'anthropic/claude-3.5-sonnet', baseUrl: 'https://openrouter.ai/api/v1', maxTokens: 1024, temperature: 0.7 }
       

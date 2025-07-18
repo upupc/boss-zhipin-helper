@@ -23,8 +23,9 @@ import {
   Settings,
   Sun,
   AlertCircle,
-  Filter,
-  Users
+  Users,
+  Hand,
+  Square
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
@@ -52,8 +53,9 @@ function App() {
   const inputRef = useRef<HTMLInputElement>(null)
   
   // Filter state
-  const [filteredGeeks, setFilteredGeeks] = useState<{ name: string; content: string; isJava: boolean; hasButton: boolean; buttonIndex: number }[]>([])
+  const [filteredGeeks, setFilteredGeeks] = useState<{ name: string; content: string; isJava: boolean; status?: string }[]>([])
   const [isFiltering, setIsFiltering] = useState(false)
+  const shouldStopGreetingRef = useRef(false)
 
   const themeOptions = [
     { value: 'system', label: 'System', icon: Monitor },
@@ -73,22 +75,100 @@ function App() {
   }
   
   // Filter geeks from BOSS page
+  // 批量发送打招呼请求
+  const sendGreetingsToGeeks = async (tabId: number, geeks: any[]) => {
+    const updatedGeeks = [...geeks];
+    
+    for (let index = 0; index < updatedGeeks.length; index++) {
+      // Check if we should stop
+      if (shouldStopGreetingRef.current) {
+        console.log('用户已停止自动打招呼');
+        break;
+      }
+      
+      const geek = updatedGeeks[index];
+      console.log(`正在处理第 ${index + 1}/${updatedGeeks.length} 个候选人: ${geek.name}`);
+      
+      try {
+        const greetResponse = await browser.tabs.sendMessage(tabId, { 
+          action: 'doGreeting',
+          index: index 
+        });
+        
+        if (greetResponse.success) {
+          console.log(`成功向 ${geek.name} 打招呼`);
+          updatedGeeks[index] = greetResponse.geek;
+        } else {
+          console.error(`向 ${geek.name} 打招呼失败:`, greetResponse.error);
+          updatedGeeks[index].status = 'failed';
+        }
+        
+        setFilteredGeeks([...updatedGeeks]);
+      } catch (error) {
+        console.error(`发送打招呼消息失败:`, error);
+        updatedGeeks[index].status = 'failed';
+        setFilteredGeeks([...updatedGeeks]);
+      }
+    }
+    
+    return updatedGeeks;
+  };
+
+  const handleStopGreeting = () => {
+    shouldStopGreetingRef.current = true
+    setIsFiltering(false)
+  }
+
   const handleFilterGeeks = async () => {
     setIsFiltering(true)
     setFilteredGeeks([])
+    shouldStopGreetingRef.current = false
     
     try {
-      // Send message to content script
+      // First check if there's a BOSS直聘 tab
       const tabs = await browser.tabs.query({ url: '*://*.zhipin.com/*' })
-      if (tabs.length === 0) {
-        alert('请先打开BOSS直聘页面')
-        setIsFiltering(false)
-        return
+      
+      let targetTab = null;
+      const recommendUrl = 'https://www.zhipin.com/web/chat/recommend';
+      
+      // Check if any tab is already on the recommend page
+      for (const tab of tabs) {
+        if (tab.url === recommendUrl) {
+          targetTab = tab;
+          break;
+        }
       }
       
-      const response = await browser.tabs.sendMessage(tabs[0].id!, { action: 'filterGeeks' })
-      if (response && response.geeks) {
-        setFilteredGeeks(response.geeks)
+      // If no recommend page found, check if we need to open one
+      if (!targetTab) {
+        if (tabs.length === 0) {
+          // No BOSS直聘 tabs open, create a new one
+          targetTab = await browser.tabs.create({ url: recommendUrl });
+          // Wait for the page to load
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        } else {
+          // Update the first BOSS直聘 tab to the recommend page
+          targetTab = await browser.tabs.update(tabs[0].id!, { url: recommendUrl });
+          // Wait for the page to load
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        }
+      }
+      
+      // Focus on the target tab
+      if (targetTab && targetTab.id) {
+        await browser.tabs.update(targetTab.id, { active: true });
+        
+        // Send message to content script with filter keywords
+        const response = await browser.tabs.sendMessage(targetTab.id, { 
+          action: 'filterGeeks',
+          filterKeywords: system.filterKeywords || 'Java'
+        })
+        if (response && response.geeks) {
+          setFilteredGeeks(response.geeks);
+          
+          // 使用封装的方法批量发送打招呼
+          await sendGreetingsToGeeks(targetTab.id, response.geeks);
+        }
       }
     } catch (error) {
       console.error('Error filtering geeks:', error)
@@ -210,43 +290,49 @@ function App() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div className="flex flex-col h-screen bg-gray-50">
       {/* Header */}
-      <div className="border-b px-4 py-3">
-        <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-            <Heart className="h-5 w-5 text-primary-foreground" />
+      <div className="border-b bg-white/80 backdrop-blur-sm px-6 py-4">
+        <div className="flex items-center gap-4">
+          <div className="h-10 w-10 rounded-xl bg-[#00BEBD] flex items-center justify-center shadow-md">
+            <Heart className="h-6 w-6 text-white" />
           </div>
-          <div>
-            <h1 className="font-semibold text-lg">BOSS直聘小助手</h1>
-            <p className="text-sm text-muted-foreground">
-              WXT + Tailwind CSS 4.0 + shadcn/ui
+          <div className="flex-1">
+            <h1 className="font-bold text-lg text-gray-800">
+              BOSS直聘智能助手
+            </h1>
+            <p className="text-xs text-gray-500 flex items-center gap-2">
+              <span className="inline-block w-2 h-2 bg-[#00BEBD] rounded-full animate-pulse"></span>
+              AI智能招聘解决方案
             </p>
           </div>
+          <Badge variant="outline" className="text-xs border-[#00BEBD]/30 text-[#00BEBD]">
+            Pro
+          </Badge>
         </div>
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-hidden">
         <Tabs value={ui.activeTab} onValueChange={handleTabChange} className="h-full flex flex-col gap-0">
-          <TabsList className="h-auto rounded-none border-b bg-transparent p-0 w-full">
+          <TabsList className="h-auto rounded-none border-b bg-white/50 p-0 w-full">
             <TabsTrigger
               value="home"
-              className="data-[state=active]:after:bg-primary relative rounded-none py-2 px-4 flex items-center gap-2 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 data-[state=active]:bg-transparent data-[state=active]:shadow-none flex-1"
+              className="data-[state=active]:after:bg-[#00BEBD] data-[state=active]:text-[#00BEBD] relative rounded-none py-2 px-4 flex items-center gap-2 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 data-[state=active]:bg-transparent data-[state=active]:shadow-none flex-1 text-gray-600"
             >
               <House className="h-4 w-4" />
               Home
             </TabsTrigger>
             <TabsTrigger
               value="chat"
-              className="data-[state=active]:after:bg-primary relative rounded-none py-2 px-4 flex items-center gap-2 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 data-[state=active]:bg-transparent data-[state=active]:shadow-none flex-1"
+              className="data-[state=active]:after:bg-[#00BEBD] data-[state=active]:text-[#00BEBD] relative rounded-none py-2 px-4 flex items-center gap-2 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 data-[state=active]:bg-transparent data-[state=active]:shadow-none flex-1 text-gray-600"
             >
               <MessageSquare className="h-4 w-4" />
               Chat
             </TabsTrigger>
             <TabsTrigger
               value="settings"
-              className="data-[state=active]:after:bg-primary relative rounded-none py-2 px-4 flex items-center gap-2 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 data-[state=active]:bg-transparent data-[state=active]:shadow-none flex-1"
+              className="data-[state=active]:after:bg-[#00BEBD] data-[state=active]:text-[#00BEBD] relative rounded-none py-2 px-4 flex items-center gap-2 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 data-[state=active]:bg-transparent data-[state=active]:shadow-none flex-1 text-gray-600"
             >
               <Settings className="h-4 w-4" />
               Settings
@@ -255,78 +341,161 @@ function App() {
 
           <TabsContent value="home" className="flex-1 overflow-hidden">
             <ScrollArea className="h-full">
-              <div className="space-y-4 p-4">
-                <div>
-                  <h2 className="text-base font-semibold flex items-center gap-2 mb-2">
-                    Welcome to BOSS直聘小助手
-                    <Badge variant="secondary">v1.0.0</Badge>
-                  </h2>
-                  <p className="text-muted-foreground mb-4">
-                    帮助你一键完成打招呼.
-                  </p>
-                  <div className="flex flex-col gap-4 items-center">
-                    <Button
-                      size="lg"
-                      onClick={() => window.open('https://www.zhipin.com/web/chat/recommend', '_blank')}
-                      className="px-8 py-3"
-                    >
-                      打开BOSS直聘
-                    </Button>
-                    
-                    <Button
-                      variant="outline"
-                      onClick={handleFilterGeeks}
-                      disabled={isFiltering}
-                      className="px-6 py-2 flex items-center gap-2"
-                    >
-                      <Filter className="h-4 w-4" />
-                      {isFiltering ? '筛选并自动打招呼中...' : '筛选候选人'}
-                    </Button>
-                    
-                    {isFiltering && (
-                      <p className="text-xs text-muted-foreground text-center mt-2">
-                        正在筛选候选人并自动向Java开发者打招呼，请耐心等待...
-                      </p>
-                    )}
-                  </div>
+              <div className="space-y-6 p-6">
+                {/* Hero Section */}
+                <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-[#00BEBD]/5 via-white to-gray-50 border border-gray-200 p-8">
+                  <div className="absolute -top-10 -right-10 w-40 h-40 bg-[#00BEBD]/10 rounded-full blur-3xl" />
+                  <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-[#00BEBD]/10 rounded-full blur-3xl" />
                   
-                  {/* Filtered Results */}
-                  {filteredGeeks.length > 0 && (
-                    <div className="mt-6">
-                      <h3 className="text-base font-semibold flex items-center gap-2 mb-3">
-                        <Users className="h-4 w-4" />
-                        筛选结果 ({filteredGeeks.length})
-                      </h3>
-                      {filteredGeeks.some(g => g.isJava && g.hasButton) && (
-                        <div className="mb-3 p-2 bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 rounded-md">
-                          <p className="text-sm text-orange-700 dark:text-orange-300">
-                            ✅ 已自动向 {filteredGeeks.filter(g => g.isJava && g.hasButton).length} 位Java候选人打招呼
-                          </p>
+                  <div className="relative">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="h-12 w-12 rounded-xl bg-[#00BEBD] flex items-center justify-center shadow-md">
+                        <Users className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-bold text-gray-800">
+                          BOSS直聘智能助手
+                        </h2>
+                        <div className="flex items-center gap-2">
+                          <Badge className="text-xs bg-gray-100 text-gray-600 border-0">v1.0.0</Badge>
+                          <Badge className="text-xs bg-[#00BEBD]/10 text-[#00BEBD] border-[#00BEBD]/20">
+                            AI Powered
+                          </Badge>
                         </div>
-                      )}
-                      <div className="space-y-3">
-                        {filteredGeeks.map((geek, index) => (
-                          <div key={index} className="border rounded-lg p-3 hover:bg-muted/50 transition-colors">
-                            <div className="flex items-center justify-between mb-2">
-                              <h4 className="font-semibold">{geek.name}</h4>
-                              <div className="flex items-center gap-2">
-                                {geek.isJava && (
-                                  <Badge className="text-xs bg-orange-500 text-white">Java</Badge>
-                                )}
-                                {geek.hasButton && (
-                                  <Badge variant="outline" className="text-xs">
-                                    可打招呼
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{geek.content}</p>
-                          </div>
-                        ))}
                       </div>
                     </div>
-                  )}
+                    
+                    <p className="text-gray-600 mb-4 text-sm leading-relaxed">
+                      智能筛选候选人，自动批量打招呼，提升招聘效率。
+                    </p>
+                    <div className="flex items-center gap-2 mb-6">
+                      <span className="text-xs text-gray-500">当前筛选关键字：</span>
+                      <Badge className="text-xs bg-[#00BEBD]/10 text-[#00BEBD] border-[#00BEBD]/20">
+                        {system.filterKeywords || 'Java'}
+                      </Badge>
+                    </div>
+                    
+                    {/* Action Buttons */}
+                    <div className="flex gap-3">
+                      <Button
+                        size="lg"
+                        onClick={() => window.open('https://www.zhipin.com/web/chat/recommend', '_blank')}
+                        className="flex-1 bg-[#00BEBD] hover:bg-[#00BEBD]/90 text-white shadow-md hover:shadow-lg transition-all duration-200 border-0"
+                      >
+                        <House className="h-4 w-4 mr-2" />
+                        打开BOSS直聘
+                      </Button>
+                      
+                      {!isFiltering ? (
+                        <Button
+                          size="lg"
+                          variant="outline"
+                          onClick={handleFilterGeeks}
+                          className="flex-1 border-[#00BEBD]/30 text-[#00BEBD] hover:border-[#00BEBD] hover:bg-[#00BEBD]/5 transition-all duration-200"
+                        >
+                          <Hand className="h-4 w-4 mr-2" />
+                          一键打招呼
+                        </Button>
+                      ) : (
+                        <Button
+                          size="lg"
+                          variant="destructive"
+                          onClick={handleStopGreeting}
+                          className="flex-1 bg-red-500 hover:bg-red-600 text-white shadow-md hover:shadow-lg transition-all duration-200 border-0"
+                        >
+                          <Square className="h-4 w-4 mr-2" />
+                          停止
+                        </Button>
+                      )}
+                    </div>
+                    
+                    {isFiltering && (
+                      <div className="mt-4 p-3 bg-[#00BEBD]/5 rounded-lg border border-[#00BEBD]/20">
+                        <p className="text-xs text-[#00BEBD] flex items-center gap-2">
+                          <div className="w-2 h-2 bg-[#00BEBD] rounded-full animate-pulse" />
+                          正在智能分析候选人资料，自动向符合关键字的候选人打招呼...
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
+                
+                {/* Filtered Results */}
+                {filteredGeeks.length > 0 && (
+                  <div className="space-y-4">
+                    {/* Results Header */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-lg bg-[#00BEBD]/10 flex items-center justify-center">
+                          <Users className="h-5 w-5 text-[#00BEBD]" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-800">筛选结果</h3>
+                          <p className="text-xs text-gray-500">
+                            共找到 {filteredGeeks.length} 位候选人
+                          </p>
+                        </div>
+                      </div>
+                      {filteredGeeks.some(g => g.status === 'greeted') && (
+                        <Badge className="bg-green-50 text-green-700 border-green-200">
+                          ✅ 已打招呼 {filteredGeeks.filter(g => g.status === 'greeted').length} 人
+                        </Badge>
+                      )}
+                    </div>
+                    
+                    {/* Candidates Grid */}
+                    <div className="grid gap-3">
+                      {filteredGeeks.map((geek, index) => (
+                        <div 
+                          key={index} 
+                          className="group relative overflow-hidden rounded-lg border border-gray-200 bg-white p-4 hover:border-[#00BEBD]/30 hover:shadow-md transition-all duration-200"
+                        >
+                          <div className="absolute inset-0 bg-gradient-to-br from-[#00BEBD]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                          
+                          <div className="relative flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="h-10 w-10 rounded-full bg-[#00BEBD]/10 flex items-center justify-center text-sm font-semibold text-[#00BEBD]">
+                                {geek.name.charAt(0)}
+                              </div>
+                              <div>
+                                <h4 className="font-semibold text-sm text-gray-800">{geek.name}</h4>
+                                <p className="text-xs text-gray-500">候选人</p>
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-2">
+                              {geek.isJava && (
+                                <Badge className="text-xs bg-orange-100 text-orange-700 border-0">
+                                  Java
+                                </Badge>
+                              )}
+                              {geek.status === 'pending' && (
+                                <Badge variant="outline" className="text-xs border-[#00BEBD]/30 text-[#00BEBD]">
+                                  待处理
+                                </Badge>
+                              )}
+                              {geek.status === 'greeted' && (
+                                <Badge className="text-xs bg-green-100 text-green-700 border-0">
+                                  已打招呼
+                                </Badge>
+                              )}
+                              {geek.status === 'disabled' && (
+                                <Badge className="text-xs bg-gray-100 text-gray-600 border-0">
+                                  已禁用
+                                </Badge>
+                              )}
+                              {geek.status === 'failed' && (
+                                <Badge className="text-xs bg-red-50 text-red-700 border-0">
+                                  失败
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </ScrollArea>
           </TabsContent>
@@ -529,6 +698,26 @@ function App() {
                       onChange={(e) => handleSyncIntervalChange(e.target.value)}
                       className="w-20 h-8 text-xs"
                       min="1"
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-2">
+                    <div>
+                      <Label className="text-sm font-medium">
+                        筛选关键字
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        只有包含这些关键字的候选人会被加入列表（多个关键字用逗号分隔）
+                      </p>
+                    </div>
+                    <Input
+                      type="text"
+                      value={system.filterKeywords}
+                      onChange={(e) => updateSystem({ filterKeywords: e.target.value })}
+                      placeholder="例如: Java, Spring, 后端"
+                      className="w-full"
                     />
                   </div>
                 </div>
