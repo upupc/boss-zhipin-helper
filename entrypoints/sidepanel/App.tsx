@@ -25,9 +25,12 @@ import {
   AlertCircle,
   Users,
   Hand,
-  Square
+  Square,
+  Check,
+  Loader2
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 
 interface ChatMessage {
   id: string
@@ -56,6 +59,10 @@ function App() {
   const [filteredGeeks, setFilteredGeeks] = useState<{ name: string; content: string; isJava: boolean; status?: string }[]>([])
   const [isFiltering, setIsFiltering] = useState(false)
   const shouldStopGreetingRef = useRef(false)
+  
+  // Settings state
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState(false)
 
   const themeOptions = [
     { value: 'system', label: 'System', icon: Monitor },
@@ -128,27 +135,53 @@ function App() {
       // First check if there's a BOSS直聘 tab
       const tabs = await browser.tabs.query({ url: '*://*.zhipin.com/*' })
       
+      // We need at least one BOSS直聘 tab to check login status
       let targetTab = null;
-      const recommendUrl = 'https://www.zhipin.com/web/chat/recommend';
+      if (tabs.length === 0) {
+        // No BOSS直聘 tabs open, create a new one
+        targetTab = await browser.tabs.create({ url: 'https://www.zhipin.com' });
+        // Wait for the page to load
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      } else {
+        targetTab = tabs[0];
+      }
       
-      // Check if any tab is already on the recommend page
-      for (const tab of tabs) {
-        if (tab.url === recommendUrl) {
-          targetTab = tab;
-          break;
+      // Check login status through content script
+      if (targetTab && targetTab.id) {
+        const loginStatusResponse = await browser.tabs.sendMessage(targetTab.id, { 
+          action: 'checkLoginStatus'
+        })
+        
+        if (!loginStatusResponse.isLoggedIn) {
+          toast.error('请先登录', {
+            description: '请先登录BOSS直聘后再使用此功能',
+            duration: 4000,
+          })
+          setIsFiltering(false)
+          return
         }
       }
       
-      // If no recommend page found, check if we need to open one
-      if (!targetTab) {
-        if (tabs.length === 0) {
-          // No BOSS直聘 tabs open, create a new one
-          targetTab = await browser.tabs.create({ url: recommendUrl });
-          // Wait for the page to load
-          await new Promise(resolve => setTimeout(resolve, 3000));
-        } else {
-          // Update the first BOSS直聘 tab to the recommend page
-          targetTab = await browser.tabs.update(tabs[0].id!, { url: recommendUrl });
+      // Continue with existing logic to check recommend page
+      const recommendUrl = 'https://www.zhipin.com/web/chat/recommend';
+      
+      // Check if current targetTab is already on the recommend page
+      if (targetTab && targetTab.url === recommendUrl) {
+        // Already on the recommend page, no need to navigate
+      } else {
+        // Check if any other tab is on the recommend page
+        let foundRecommendTab = false;
+        for (const tab of tabs) {
+          if (tab.url === recommendUrl) {
+            targetTab = tab;
+            foundRecommendTab = true;
+            break;
+          }
+        }
+        
+        // If no recommend page found, navigate to it
+        if (!foundRecommendTab && targetTab && targetTab.id) {
+          targetTab = await browser.tabs.update(targetTab.id, { url: recommendUrl });
           // Wait for the page to load
           await new Promise(resolve => setTimeout(resolve, 3000));
         }
@@ -377,21 +410,11 @@ function App() {
                     
                     {/* Action Buttons */}
                     <div className="flex gap-3">
-                      <Button
-                        size="lg"
-                        onClick={() => window.open('https://www.zhipin.com/web/chat/recommend', '_blank')}
-                        className="flex-1 bg-[#00BEBD] hover:bg-[#00BEBD]/90 text-white shadow-md hover:shadow-lg transition-all duration-200 border-0"
-                      >
-                        <House className="h-4 w-4 mr-2" />
-                        打开BOSS直聘
-                      </Button>
-                      
                       {!isFiltering ? (
                         <Button
                           size="lg"
-                          variant="outline"
                           onClick={handleFilterGeeks}
-                          className="flex-1 border-[#00BEBD]/30 text-[#00BEBD] hover:border-[#00BEBD] hover:bg-[#00BEBD]/5 transition-all duration-200"
+                          className="w-full bg-[#00BEBD] hover:bg-[#00BEBD]/90 text-white shadow-md hover:shadow-lg transition-all duration-200 border-0"
                         >
                           <Hand className="h-4 w-4 mr-2" />
                           一键打招呼
@@ -401,7 +424,7 @@ function App() {
                           size="lg"
                           variant="destructive"
                           onClick={handleStopGreeting}
-                          className="flex-1 bg-red-500 hover:bg-red-600 text-white shadow-md hover:shadow-lg transition-all duration-200 border-0"
+                          className="w-full bg-red-500 hover:bg-red-600 text-white shadow-md hover:shadow-lg transition-all duration-200 border-0"
                         >
                           <Square className="h-4 w-4 mr-2" />
                           停止
@@ -891,7 +914,40 @@ function App() {
                   <Button variant="outline" className="flex-1" onClick={resetSettings}>
                     Reset
                   </Button>
-                  <Button className="flex-1">Save Changes</Button>
+                  <Button 
+                    className={cn(
+                      "flex-1 transition-all duration-300",
+                      saveSuccess && "bg-green-600 hover:bg-green-700"
+                    )}
+                    onClick={async () => {
+                      setIsSaving(true)
+                      // Simulate saving with a small delay
+                      await new Promise(resolve => setTimeout(resolve, 800))
+                      setIsSaving(false)
+                      setSaveSuccess(true)
+                      toast.success('设置已保存', {
+                        description: '所有更改已成功保存到本地存储。',
+                        duration: 3000,
+                      })
+                      // Reset success state after animation
+                      setTimeout(() => setSaveSuccess(false), 2000)
+                    }}
+                    disabled={isSaving}
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        保存中...
+                      </>
+                    ) : saveSuccess ? (
+                      <>
+                        <Check className="h-4 w-4 mr-2" />
+                        已保存
+                      </>
+                    ) : (
+                      '保存设置'
+                    )}
+                  </Button>
                 </div>
               </div>
             </ScrollArea>

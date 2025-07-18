@@ -169,6 +169,25 @@ async function doGreeting(request: any) {
   return geek;
 }
 
+// Function to check login status
+async function checkLoginStatus() {
+  try {
+    const response = await fetch('https://www.zhipin.com/wapi/zpblock/vip/state', {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+      }
+    });
+    
+    const data = await response.json();
+    return { isLoggedIn: data.code === 0, data };
+  } catch (error) {
+    console.error('检查登录状态时出错:', error);
+    return { isLoggedIn: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 export default defineContentScript({
   matches: ['*://*.zhipin.com/*'],
   main() {
@@ -176,7 +195,13 @@ export default defineContentScript({
     
     // Listen for messages from the sidepanel
     browser.runtime.onMessage.addListener((request, _sender, sendResponse) => {
-      if (request.action === 'filterGeeks') {
+      if (request.action === 'checkLoginStatus') {
+        checkLoginStatus().then(result => {
+          sendResponse(result);
+        }).catch(error => {
+          sendResponse({ isLoggedIn: false, error: error instanceof Error ? error.message : String(error) });
+        });
+      } else if (request.action === 'filterGeeks') {
         // Handle async operation
         const keywords = request.filterKeywords || 'Java';
         filterAndGreetCandidates(keywords).then(geeks => {
