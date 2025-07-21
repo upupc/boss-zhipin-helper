@@ -17,7 +17,7 @@ interface UISettings {
   activeTab: string
 }
 
-interface APISettings {
+export interface APISettings {
   openrouterApiKey: string
   openrouterModel: string
   baseUrl: string

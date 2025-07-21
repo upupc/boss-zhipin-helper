@@ -38,8 +38,8 @@ export async function sendMessageToOpenRouter(
       apiKey: config.apiKey,
       baseURL: config.baseUrl || 'https://openrouter.ai/api/v1',
       defaultHeaders: {
-        'HTTP-Referer': typeof window !== 'undefined' ? window.location.href : 'chrome-extension://boss-zhipin-helper',
-        'X-Title': 'Boss Zhipin Helper'
+        'HTTP-Referer': typeof window !== 'undefined' ? window.location.href : 'chrome-extension://niuma-helper',
+        'X-Title': 'Niuma Helper'
       },
       dangerouslyAllowBrowser: true
     })

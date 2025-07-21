@@ -12,7 +12,7 @@ export default defineConfig({
     plugins: [tailwindcss()],
   }),
   manifest: {
-    permissions: ['sidePanel', 'storage', 'tabs'],
+    permissions: ['sidePanel', 'storage', 'tabs','downloads','fileSystem'],
     side_panel: {
       default_path: 'sidepanel.html'
     },
