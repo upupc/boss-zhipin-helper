@@ -22,6 +22,18 @@ const themeOptions = [
   { value: 'dark', label: 'Dark', icon: Moon }
 ] as const
 
+const llmModelOptions = [
+  {provider:'anthropic', value: 'claude-sonnet-4-20250514', label: 'Claude 4 Sonnet', baseUrl: 'https://openrouter.ai/api/v1' },
+  {provider:'anthropic',  value: 'claude-opus-4-20250514', label: 'Claude 4 Opus', baseUrl: 'https://openrouter.ai/api/v1' },
+  {provider:'openai',  value: 'gpt-4o', label: 'GPT-4o', baseUrl: 'https://openrouter.ai/api/v1' },
+  {provider:'openai',  value: 'gpt-4-turbo', label: 'GPT-4 Turbo', baseUrl: 'https://openrouter.ai/api/v1' },
+  {provider:'google',  value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', baseUrl: 'https://openrouter.ai/api/v1' },
+  {provider:'google',  value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', baseUrl: 'https://openrouter.ai/api/v1' },
+  {provider:'qwen',  value: 'qwen3-235b-a22b', label: 'qwen3-235b-a22b', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
+  {provider:'deepseek',  value: 'deepseek-chat-v3-0324', label: 'deepseek-chat-v3-0324', baseUrl: 'https://openrouter.ai/api/v1' },
+  {provider:'moonshotai',  value: 'kimi-k2', label: 'kimi-k2', baseUrl: 'https://openrouter.ai/api/v1' },
+]
+
 // Module level helper functions
 const parseIntervalValue = (value: string): number | null => {
   const interval = parseInt(value)
@@ -270,7 +282,7 @@ export function SettingsTab({}: SettingsTabProps) {
                 type="url"
                 value={api.baseUrl}
                 onChange={(e) => updateAPI({ baseUrl: e.target.value })}
-                placeholder="https://openrouter.ai/api/v1"
+                placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1"
                 className="mt-1"
               />
               <p className="text-xs text-muted-foreground mt-1">
@@ -287,18 +299,21 @@ export function SettingsTab({}: SettingsTabProps) {
               <select
                 id="model"
                 value={api.openrouterModel}
-                onChange={(e) => updateAPI({ openrouterModel: e.target.value })}
+                onChange={(e) => {
+                  const selectedModel = llmModelOptions.find(option => option.value === e.target.value)
+                  updateAPI({ 
+                    openrouterModel: e.target.value,
+                    provider: selectedModel?.provider||'',
+                    baseUrl: selectedModel?.baseUrl || 'https://openrouter.ai/api/v1'
+                  })
+                }}
                 className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <option value="anthropic/claude-sonnet-4-20250514">Claude 4 Sonnet</option>
-                <option value="anthropic/claude-opus-4-20250514">Claude 4 Opus</option>
-                <option value="openai/gpt-4o">GPT-4o</option>
-                <option value="openai/gpt-4-turbo">GPT-4 Turbo</option>
-                <option value="google/gemini-2.5-flash">Gemini 2.5 Flash</option>
-                <option value="google/gemini-2.5-pro">Gemini 2.5 Pro</option>
-                <option value="qwen/qwen3-235b-a22b">qwen3-235b-a22b</option>
-                <option value="deepseek/deepseek-chat-v3-0324">deepseek-chat-v3-0324</option>
-                <option value="moonshotai/kimi-k2">kimi-k2</option>
+                {llmModelOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </div>
 

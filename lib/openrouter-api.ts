@@ -8,6 +8,7 @@ export interface OpenRouterMessage {
 export interface OpenRouterAPIConfig {
   apiKey: string
   baseUrl?: string
+  provider:string
   model?: string
   maxTokens?: number
   temperature?: number
@@ -26,36 +27,62 @@ export class OpenRouterAPIError extends Error {
 
 export async function sendMessageToOpenRouter(
   messages: OpenRouterMessage[],
-  config: OpenRouterAPIConfig
+  config: OpenRouterAPIConfig,
+  onStream?: (chunk: string) => void
 ): Promise<string> {
   if (!config.apiKey) {
     throw new OpenRouterAPIError('API key is required')
   }
 
   try {
+    const baseUrl = config.baseUrl || 'https://openrouter.ai/api/v1';
     // Initialize OpenAI client with OpenRouter configuration
     const openai = new OpenAI({
       apiKey: config.apiKey,
-      baseURL: config.baseUrl || 'https://openrouter.ai/api/v1',
+      baseURL: baseUrl,
       defaultHeaders: {
         'HTTP-Referer': typeof window !== 'undefined' ? window.location.href : 'chrome-extension://niuma-helper',
         'X-Title': 'Niuma Helper'
       },
       dangerouslyAllowBrowser: true
     })
+    
+    let model = config.model;
+    if(baseUrl.includes('openrouter')){
+      model = config.provider + '/' + config.model
+    }
+    
+    // If streaming callback is provided, use streaming
+    if (onStream) {
+      const stream = await openai.chat.completions.create({
+        model: model || '',
+        max_completion_tokens: config.maxTokens || 1024,
+        temperature: config.temperature || 0.7,
+        messages: messages,
+        stream: true
+      })
 
-    // Create chat completion with OpenRouter
-    const response = await openai.chat.completions.create({
-      model: config.model || 'anthropic/claude-sonnet-4-20250514',
-      max_tokens: config.maxTokens || 1024,
-      temperature: config.temperature || 0.7,
-      messages: messages,
-    })
+      let fullContent = ''
+      for await (const chunk of stream) {
+        const chunkContent = chunk.choices[0]?.delta?.content || ''
+        fullContent += chunkContent
+        onStream(chunkContent)
+      }
+      
+      return fullContent
+    } else {
+      // Non-streaming mode
+      const response = await openai.chat.completions.create({
+        model: model || '',
+        max_completion_tokens: config.maxTokens || 1024,
+        temperature: config.temperature || 0.7,
+        messages: messages
+      })
 
-    // Extract text content from the response
-    const textContent = response.choices[0]?.message?.content || ''
-
-    return textContent
+      // Extract text content from the response
+      const textContent = response.choices[0]?.message?.content || ''
+      return textContent
+    }
   } catch (error) {
     // Handle OpenAI SDK errors
     if (error instanceof OpenAI.APIError) {

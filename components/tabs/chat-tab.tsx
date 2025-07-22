@@ -96,16 +96,30 @@ export function ChatTab({}: ChatTabProps) {
         content: userMessage.content
       })
 
-      const response = await sendMessageToOpenRouter(openrouterMessages, {
+      // Create bot message with empty content for streaming
+      const botMessage = createBotMessage('')
+      setMessages(prev => [...prev, botMessage])
+      
+      let streamedContent = ''
+      await sendMessageToOpenRouter(openrouterMessages, {
         apiKey: api.openrouterApiKey,
         baseUrl: api.baseUrl,
+        provider: api.provider,
         model: api.openrouterModel,
         maxTokens: api.maxTokens,
         temperature: api.temperature
+      }, (chunk) => {
+        // Update message content as chunks arrive
+        streamedContent += chunk
+        if(streamedContent===''){
+          return;
+        }
+        setMessages(prev => prev.map(msg => 
+          msg.id === botMessage.id 
+            ? { ...msg, content: streamedContent }
+            : msg
+        ))
       })
-
-      const botMessage = createBotMessage(response)
-      setMessages(prev => [...prev, botMessage])
     } catch (error) {
       const errorContent = getErrorMessage(error)
       const errorMessage = createBotMessage(errorContent)

@@ -33,11 +33,12 @@ export async function doDownloadResume(request: MessageRequest): Promise<any> {
 
   //等待页面加载
   await randomDelay(1000,2000);
-  
-  await clickRequestResumeButton();
 
-  await randomDelay(1000,3000);
-  openResumeAttachment();
+  if(!openResumeAttachment()){
+    await clickRequestResumeButton();
+    await randomDelay(1000,3000);
+    openResumeAttachment();
+  }
 
   await randomDelay(1000,3000);
   clickDownloadResume();
@@ -123,9 +124,10 @@ function openResumeAttachment(){
     const button = getResumeAttachmentButton(elements) as HTMLElement;
     if(button){
       button.click();
-      return;
+      return true;
     }
   }
+  return false;
 }
 
 function closeResumeAttachment(){

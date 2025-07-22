@@ -20,11 +20,20 @@ interface UISettings {
 export interface APISettings {
   openrouterApiKey: string
   openrouterModel: string
+  provider: string
   baseUrl: string
   maxTokens: number
   temperature: number
 }
 
+const defaultApiSettings:APISettings = {
+  openrouterApiKey: 'sk-cbb74ca319bf421aa369b5b3f0089c08',
+  openrouterModel: 'qwen3-235b-a22b',
+  provider:'qwen',
+  baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  maxTokens: 1024,
+  temperature: 0.7
+}
 // Define storage items
 const appearanceSettings = storage.defineItem<AppearanceSettings>('local:appearanceSettings', {
   fallback: {
@@ -47,20 +56,14 @@ const uiSettings = storage.defineItem<UISettings>('local:uiSettings', {
 })
 
 const apiSettings = storage.defineItem<APISettings>('local:apiSettings', {
-  fallback: {
-    openrouterApiKey: '',
-    openrouterModel: 'anthropic/claude-3.5-sonnet',
-    baseUrl: 'https://openrouter.ai/api/v1',
-    maxTokens: 1024,
-    temperature: 0.7
-  }
+  fallback: defaultApiSettings
 })
 
 export function useSettings() {
   const [appearance, setAppearance] = useState<AppearanceSettings>({ theme: 'system' })
   const [system, setSystem] = useState<SystemSettings>({ notifications: true, syncInterval: 15, filterKeywords: 'Java' })
   const [ui, setUI] = useState<UISettings>({ activeTab: 'home' })
-  const [api, setAPI] = useState<APISettings>({ openrouterApiKey: '', openrouterModel: 'anthropic/claude-3.5-sonnet', baseUrl: 'https://openrouter.ai/api/v1', maxTokens: 1024, temperature: 0.7 })
+  const [api, setAPI] = useState<APISettings>(defaultApiSettings)
   const [loading, setLoading] = useState(true)
 
   // Load settings
@@ -146,7 +149,7 @@ export function useSettings() {
       const defaultAppearance = { theme: 'system' as Theme }
       const defaultSystem = { notifications: true, syncInterval: 15, filterKeywords: 'Java' }
       const defaultUI = { activeTab: 'home' }
-      const defaultAPI = { openrouterApiKey: '', openrouterModel: 'anthropic/claude-3.5-sonnet', baseUrl: 'https://openrouter.ai/api/v1', maxTokens: 1024, temperature: 0.7 }
+      const defaultAPI = defaultApiSettings
       
       setAppearance(defaultAppearance)
       setSystem(defaultSystem)
