@@ -517,7 +517,7 @@ export function RecruitTab({}: RecruitTabProps) {
                   BOSS直聘智能助手
                 </h2>
                 <div className="flex items-center gap-2">
-                  <Badge className="text-xs bg-gray-100 text-gray-600 border-0">v1.0.0</Badge>
+                  <Badge className="text-xs bg-gray-100 text-gray-600 border-0">v1.0.1</Badge>
                   <Badge className="text-xs bg-[#00BEBD]/10 text-[#00BEBD] border-[#00BEBD]/20">
                     AI Powered
                   </Badge>
