@@ -14,6 +14,7 @@ export interface ResumeData {
 
 export interface ResumeEvaluation {
   result: boolean
+  name: string
   age: string
   experience: string
   education: string
@@ -45,7 +46,8 @@ export class ResumeEvaluatorError extends Error {
   constructor(
     message: string,
     public status?: number,
-    public details?: any
+    public details?: any,
+    public error?:Error
   ) {
     super(message)
     this.name = 'ResumeEvaluatorError'
@@ -268,22 +270,21 @@ export class ResumeEvaluator {
       try {
         const resumeContent = JSON.parse(fullContent) as ResumeContent
 
+        messages = [
+          {
+            role: 'system',
+            content: EVALUATION_PROMPT
+          },
+          {
+            role: 'user',
+            content: `详细和严格的评估下面这份简历的内容：\n${resumeContent.content}`
+          }
+        ]
+
         if(isAliyunDashscope){
           const qwenClient = createQwenClient(apiSettings.openrouterApiKey,apiSettings.baseUrl)
 
-
-          const qwenMessages:QwenMessage[] = [
-            {
-              role: 'system',
-              content: EVALUATION_PROMPT
-            },
-            {
-              role: 'user',
-              content: `详细和严格的评估下面这份简历的内容：
-${resumeContent.content}
-`
-            }
-          ]
+          const qwenMessages:QwenMessage[] = messages as QwenMessage[]
 
           const qwenRequestParams:QwenRequestParams = {
             model: model,
@@ -294,22 +295,10 @@ ${resumeContent.content}
           }
           fullContent = await qwenClient.chat(qwenRequestParams)
         }else{
-          messages = [
-            {
-              role: 'system',
-              content: EVALUATION_PROMPT
-            },
-            {
-              role: 'user',
-              content: `详细和严格的评估下面这份简历的内容：
-${resumeContent.content}
-`
-            }
-          ]
           response = await openai.chat.completions.create({
             model: model,
-            max_completion_tokens: 524288,
-            temperature: 0.7,
+            max_completion_tokens: apiSettings.maxTokens,
+            temperature: apiSettings.temperature,
             messages: messages,
             stream: false,
             response_format:response_format2
@@ -320,19 +309,17 @@ ${resumeContent.content}
         if (!fullContent) {
           throw new ResumeEvaluatorError('No content in API response')
         }
-
-        return JSON.parse(fullContent) as ResumeEvaluation
+        const resumeResult = JSON.parse(fullContent) as ResumeEvaluation
+        resumeResult.name = resumeContent.name
+        return resumeResult
       } catch (parseError) {
-        throw new ResumeEvaluatorError('Failed to parse API response', undefined, {
-          content: fullContent,
-          parseError
-        })
+        throw new ResumeEvaluatorError('Failed to parse API response', undefined, fullContent, parseError as Error)
       }
     } catch (error) {
       if (error instanceof ResumeEvaluatorError) {
         throw error
       }
-      throw new ResumeEvaluatorError('Resume evaluation failed', undefined, error)
+      throw new ResumeEvaluatorError('Resume evaluation failed', undefined,'', error as Error)
     }
   }
 

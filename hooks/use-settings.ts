@@ -27,7 +27,7 @@ export interface APISettings {
 }
 
 const defaultApiSettings:APISettings = {
-  openrouterApiKey: 'sk-cbb74ca319bf421aa369b5b3f0089c08',
+  openrouterApiKey: '',
   openrouterModel: 'qwen3-235b-a22b',
   provider:'qwen',
   baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',

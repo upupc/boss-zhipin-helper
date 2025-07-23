@@ -43,7 +43,7 @@ function App() {
             </h1>
             <p className="text-xs text-gray-500 flex items-center gap-2">
               <span className="inline-block w-2 h-2 bg-[#00BEBD] rounded-full animate-pulse"></span>
-              所有和写代码不相关的事情都能帮你做
+              我们愿景是：让天下牛马没有写代码之外的事情
             </p>
           </div>
           <Badge variant="outline" className="text-xs border-[#00BEBD]/30 text-[#00BEBD]">

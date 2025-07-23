@@ -1,11 +1,11 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Hand, Square, Users, MessageCircle, FileText, Download } from 'lucide-react'
+import { Hand, Square, Users, MessageCircle, FileText, Download, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 import { useState, useRef } from 'react'
 import { toast } from 'sonner'
 import { useSettings } from '@/hooks/use-settings'
-import { createResumeEvaluatorFromSettings, type ResumeEvaluation } from '@/lib/resume-evaluator'
+import {createResumeEvaluatorFromSettings, type ResumeEvaluation, ResumeEvaluatorError} from '@/lib/resume-evaluator'
 
 interface RecruitTabProps {}
 
@@ -24,7 +24,8 @@ interface ResumeFile {
   lastModified: Date
   file?: File
   evaluation?: ResumeEvaluation
-  isEvaluating?: boolean
+  isEvaluating?: boolean,
+  tips?: string
 }
 
 // Module level helper functions
@@ -141,6 +142,7 @@ const downloadResumesForUsers = async (
 
 // Global state for greeting control
 let globalShouldStopGreeting = false
+let globalShouldStopScanning = false;
 
 // Module level clear list method
 const clearList = (
@@ -311,36 +313,148 @@ const handleNewChatUsersResume = async (
   }
 }
 
-async function scanResumes(e: React.ChangeEvent<HTMLInputElement>, setResumeFiles: (value: (((prevState: ResumeFile[]) => ResumeFile[]) | ResumeFile[])) => void, setIsScanning: (value: (((prevState: boolean) => boolean) | boolean)) => void, fileInputRef: React.RefObject<HTMLInputElement | null>) {
+async function scanResumes(e: React.ChangeEvent<HTMLInputElement>,api:any, setResumeFiles: (value: (((prevState: ResumeFile[]) => ResumeFile[]) | ResumeFile[])) => void, setIsScanning: (value: (((prevState: boolean) => boolean) | boolean)) => void, fileInputRef: React.RefObject<HTMLInputElement | null>) {
   const files = e.target.files
-  if (files && files.length > 0) {
-    const fileList: ResumeFile[] = []
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i]
-      // Skip directories, only process files
-      if (file.size === 0) continue
-
-      fileList.push({
-        name: file.name,
-        path: file.webkitRelativePath || file.name,
-        size: file.size,
-        lastModified: new Date(file.lastModified),
-        file: file
-      })
-    }
-
-    if (fileList.length > 0) {
-      toast.success(`扫描完成，找到 ${fileList.length} 个文件`)
-    }
-
-    setResumeFiles(fileList)
+  if(!files || files.length === 0) {
+    setIsScanning(false)
+    return;
   }
+  const fileList: ResumeFile[] = []
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i]
+    // Skip directories, only process files
+    if (file.size === 0) continue
+
+    fileList.push({
+      name: file.name,
+      path: file.webkitRelativePath || file.name,
+      size: file.size,
+      lastModified: new Date(file.lastModified),
+      file: file,
+      tips:'待评估',
+      isEvaluating: false
+    })
+  }
+
+  if (fileList.length > 0) {
+    toast.success(`扫描完成，找到 ${fileList.length} 个文件`)
+  }
+
+  setResumeFiles(fileList)
+  // Start evaluation for all files
+  for(let i = 0; i < fileList.length; i++) {
+    if(globalShouldStopScanning){
+      break;
+    }
+    await evalResume(fileList, i, setResumeFiles, api);
+  }
+
   setIsScanning(false)
   // Reset the input so user can select the same folder again
   if (fileInputRef.current) {
     fileInputRef.current.value = ''
   }
+}
+
+async function evalResume(fileList: ResumeFile[],index:number,setResumeFiles: (value: (((prevState: ResumeFile[]) => ResumeFile[]) | ResumeFile[])) => void,api:any)  {
+  const resumeFile = { ...fileList[index] }
+  if (!resumeFile.file) {
+    setResumeFiles(prevFiles => {
+      const newFiles = [...prevFiles]
+      newFiles[index] = {
+        ...newFiles[index],
+        isEvaluating: false,
+        tips: '文件不可用'
+      }
+      return newFiles
+    })
+    toast.error('文件不可用', {
+      description: '请重新选择文件夹',
+      duration: 3000,
+    })
+    return
+  }
+
+  // Update status to evaluating
+  setResumeFiles(prevFiles => {
+    const newFiles = [...prevFiles]
+    newFiles[index] = {
+      ...newFiles[index],
+      isEvaluating: true,
+      tips: '评估中'
+    }
+    return newFiles
+  })
+
+  try{
+    // Evaluate the resume
+    const evaluation = await readFileAndEvaluate(resumeFile.file, api)
+    // Update with evaluation results
+    setResumeFiles(prevFiles => {
+      const newFiles = [...prevFiles]
+      newFiles[index] = {
+        ...newFiles[index],
+        evaluation: evaluation as ResumeEvaluation,
+        isEvaluating: false,
+        tips: '评估完成'
+      }
+      return newFiles
+    })
+
+    if(evaluation?.result){
+      // todo 保存resumeFile.file到pass文件夹
+      try {
+        // Create a blob URL from the file
+        const blobUrl = URL.createObjectURL(resumeFile.file)
+        
+        // Download the file to a "pass" subfolder
+        await browser.downloads.download({
+          url: blobUrl,
+          filename: `eval_successes/${resumeFile.name}`,
+          saveAs: false
+        })
+        
+        // Clean up the blob URL
+        URL.revokeObjectURL(blobUrl)
+        
+        console.log(`已保存推荐简历: ${resumeFile.name}`)
+
+        toast.info('简历保存成功', {
+          description: `已保存${evaluation.name}的简历到eval_successes文件夹`,
+          duration: 3000
+        })
+
+      } catch (downloadError) {
+        console.error('保存简历失败:', downloadError)
+        toast.error('保存简历失败', {
+          description: `无法保存 ${resumeFile.name} 到 pass 文件夹`,
+          duration: 3000
+        })
+      }
+    }
+
+  } catch (error) {
+    setResumeFiles(prevFiles => {
+      const newFiles = [...prevFiles]
+      newFiles[index] = {
+        ...newFiles[index],
+        isEvaluating: false,
+        tips: (error as Error).message
+      }
+      return newFiles
+    })
+  }
+}
+
+function getErrorMessage(error:any):string {
+  if(error instanceof ResumeEvaluatorError) {
+    return error.error?getErrorMessage(error.error):error.message;
+  }
+  if(error instanceof Error) {
+    return error.message;
+  }
+  return error.toString();
 }
 
 async function readFileAndEvaluate(file: File, apiSettings?: any): Promise<ResumeEvaluation | null> {
@@ -366,11 +480,12 @@ async function readFileAndEvaluate(file: File, apiSettings?: any): Promise<Resum
     return evaluation
   } catch (error) {
     console.error('评估简历失败:', error)
+    const message = getErrorMessage(error);
     toast.error(`评估失败: ${file.name}`, {
-      description: error instanceof Error ? error.message : '未知错误',
+      description: message,
       duration: 4000,
     })
-    return null
+    throw error
   }
 }
 
@@ -475,22 +590,37 @@ export function RecruitTab({}: RecruitTabProps) {
                 type="file"
                 // @ts-ignore - webkitdirectory is not in TypeScript types but works in browsers
                 multiple
-                onChange={(e) => scanResumes(e, setResumeFiles, setIsScanning, fileInputRef)}
+                onChange={(e) => scanResumes(e,api, setResumeFiles, setIsScanning, fileInputRef)}
                 style={{ display: 'none' }}
               />
-              <Button
-                size="lg"
-                onClick={() => {
-                  clearList(setFilteredGeeks, setChatUsers, setResumeFiles)
-                  setIsScanning(true)
-                  fileInputRef.current?.click()
-                }}
-                disabled={isScanning}
-                className="w-full bg-blue-500 hover:bg-blue-600 text-white shadow-md hover:shadow-lg transition-all duration-200 border-0"
-              >
-                <FileText className="h-4 w-4 mr-2" />
-                {isScanning ? '正在选择文件夹...' : '评估简历'}
-              </Button>
+              {isScanning?(
+                  <Button
+                      size="lg"
+                      onClick={() => {
+                        globalShouldStopScanning = true;
+                        setIsScanning(false);
+                      }}
+                      className="w-full bg-red-500 hover:bg-red-600 text-white shadow-md hover:shadow-lg transition-all duration-200 border-0"
+                  >
+                    <Square className="h-4 w-4 mr-2" />
+                    正在评估简历
+                  </Button>
+              ):(
+                  <Button
+                      size="lg"
+                      onClick={() => {
+                        globalShouldStopScanning = false;
+                        clearList(setFilteredGeeks, setChatUsers, setResumeFiles)
+                        setIsScanning(true)
+                        fileInputRef.current?.click()
+                      }}
+                      className="w-full bg-blue-500 hover:bg-blue-600 text-white shadow-md hover:shadow-lg transition-all duration-200 border-0"
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    评估简历
+                  </Button>
+              )}
+
               <p className="text-xs text-gray-500 mt-2">
                 点击选择简历文件夹进行评估
               </p>
@@ -663,43 +793,33 @@ export function RecruitTab({}: RecruitTabProps) {
                         <FileText className="h-4 w-4 text-blue-600" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-medium text-sm text-gray-800 truncate">{file.name}</h4>
+                        <h4 className="font-medium text-sm text-gray-800 truncate">{file.evaluation?file.evaluation.name:file.name}</h4>
                         <p className="text-xs text-gray-500">
                           {(file.size / 1024).toFixed(1)} KB • {file.lastModified.toLocaleDateString()}
                         </p>
                       </div>
                     </div>
                     
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-xs"
-                      disabled={file.isEvaluating || !file.file}
-                      onClick={async () => {
-                        if (!file.file) {
-                          toast.error('文件不可用', {
-                            description: '请重新选择文件夹',
-                            duration: 3000,
-                          })
-                          return
-                        }
-                        
-                        // Update the file to show evaluating status
-                        setResumeFiles(prev => prev.map((f, i) => 
-                          i === index ? { ...f, isEvaluating: true } : f
-                        ))
-                        
-                        // Evaluate the resume
-                        const evaluation = await readFileAndEvaluate(file.file, api)
-                        
-                        // Update the file with evaluation result
-                        setResumeFiles(prev => prev.map((f, i) => 
-                          i === index ? { ...f, isEvaluating: false, evaluation: evaluation || undefined } : f
-                        ))
-                      }}
-                    >
-                      {file.isEvaluating ? '评估中...' : file.evaluation ? '查看结果' : '评估'}
-                    </Button>
+                    <div className="flex items-center gap-1.5 text-xs">
+                      {file.isEvaluating ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin text-blue-600" />
+                          <span className="text-blue-600">评估中</span>
+                        </>
+                      ) : file.tips === '评估完成' ? (
+                        <>
+                          <CheckCircle className="h-3 w-3 text-green-600" />
+                          <span className="text-green-600">{file.tips}</span>
+                        </>
+                      ) : file.tips === '文件不可用' || file.tips === '下载失败' ? (
+                        <>
+                          <AlertCircle className="h-3 w-3 text-red-600" />
+                          <span className="text-red-600">{file.tips}</span>
+                        </>
+                      ) : (
+                        <span className="text-gray-500">{file.tips}</span>
+                      )}
+                    </div>
                   </div>
                   
                   {/* Show evaluation results if available */}
