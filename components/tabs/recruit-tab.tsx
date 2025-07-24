@@ -363,6 +363,7 @@ browser.downloads.onDeterminingFilename.addListener((item,suggest) => {
     filename:globalFilename,
     conflictAction:'uniquify'
   })
+  globalFilename = ''
 });
 
 async function evalResume(fileList: ResumeFile[],index:number,setResumeFiles: (value: (((prevState: ResumeFile[]) => ResumeFile[]) | ResumeFile[])) => void,api:any)  {
