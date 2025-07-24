@@ -357,6 +357,14 @@ async function scanResumes(e: React.ChangeEvent<HTMLInputElement>,api:any, setRe
   }
 }
 
+let globalFilename = ''
+browser.downloads.onDeterminingFilename.addListener((item,suggest) => {
+  suggest({
+    filename:globalFilename,
+    conflictAction:'uniquify'
+  })
+});
+
 async function evalResume(fileList: ResumeFile[],index:number,setResumeFiles: (value: (((prevState: ResumeFile[]) => ResumeFile[]) | ResumeFile[])) => void,api:any)  {
   const resumeFile = { ...fileList[index] }
   if (!resumeFile.file) {
@@ -387,6 +395,7 @@ async function evalResume(fileList: ResumeFile[],index:number,setResumeFiles: (v
     return newFiles
   })
 
+  let fileDir = '';
   try{
     // Evaluate the resume
     const evaluation = await readFileAndEvaluate(resumeFile.file, api)
@@ -403,38 +412,14 @@ async function evalResume(fileList: ResumeFile[],index:number,setResumeFiles: (v
     })
 
     if(evaluation?.result){
-      // todo 保存resumeFile.file到pass文件夹
-      try {
-        // Create a blob URL from the file
-        const blobUrl = URL.createObjectURL(resumeFile.file)
-        
-        // Download the file to a "pass" subfolder
-        await browser.downloads.download({
-          url: blobUrl,
-          filename: `eval_successes/${resumeFile.name}`,
-          saveAs: false
-        })
-        
-        // Clean up the blob URL
-        URL.revokeObjectURL(blobUrl)
-        
-        console.log(`已保存推荐简历: ${resumeFile.name}`)
-
-        toast.info('简历保存成功', {
-          description: `已保存${evaluation.name}的简历到eval_successes文件夹`,
-          duration: 3000
-        })
-
-      } catch (downloadError) {
-        console.error('保存简历失败:', downloadError)
-        toast.error('保存简历失败', {
-          description: `无法保存 ${resumeFile.name} 到 pass 文件夹`,
-          duration: 3000
-        })
-      }
+      fileDir = 'eval_successes'
+    }else{
+      fileDir = 'eval_failed'
     }
 
   } catch (error) {
+    fileDir = 'eval_error'
+
     setResumeFiles(prevFiles => {
       const newFiles = [...prevFiles]
       newFiles[index] = {
@@ -443,6 +428,38 @@ async function evalResume(fileList: ResumeFile[],index:number,setResumeFiles: (v
         tips: (error as Error).message
       }
       return newFiles
+    })
+  }
+
+  try {
+    // Create a blob URL from the file
+    const blobUrl = URL.createObjectURL(resumeFile.file)
+
+    globalFilename = `${fileDir}/${resumeFile.file.name}`;
+
+    // Download the file to a "pass" subfolder
+    await browser.downloads.download({
+      url: blobUrl,
+      filename: globalFilename,
+      saveAs: false,
+      conflictAction: 'uniquify'
+    })
+
+    // Clean up the blob URL
+    URL.revokeObjectURL(blobUrl)
+
+    console.log(`已保存推荐简历: ${resumeFile.name}`)
+
+    toast.info('简历保存成功', {
+      description: `已保存${resumeFile.name}的简历到eval_successes文件夹`,
+      duration: 3000
+    })
+
+  } catch (downloadError) {
+    console.error('保存简历失败:', downloadError)
+    toast.error('保存简历失败', {
+      description: `无法保存 ${resumeFile.name} 到 ${fileDir} 文件夹`,
+      duration: 3000
     })
   }
 }
@@ -793,7 +810,7 @@ export function RecruitTab({}: RecruitTabProps) {
                         <FileText className="h-4 w-4 text-blue-600" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-medium text-sm text-gray-800 truncate">{file.evaluation?file.evaluation.name:file.name}</h4>
+                        <h4 className="font-medium text-sm text-gray-800 truncate" title={file.evaluation?.name || file.name}>{file.evaluation?file.evaluation.name:file.name}</h4>
                         <p className="text-xs text-gray-500">
                           {(file.size / 1024).toFixed(1)} KB • {file.lastModified.toLocaleDateString()}
                         </p>
