@@ -77,7 +77,7 @@ const EVALUATION_PROMPT = `# 招聘简历筛选评估提示词
    - 在读研究生需要明确毕业时间在合理范围内
 
 4. **院校要求**
-   - 毕业院校必须满足以下条件之一：
+   - 毕业院校必须满足以下条件之一(如果有多个院校，必须所有的院校都满足)：
      - 中国985工程院校
      - 中国211工程院校  
      - QS世界大学排名前100名院校
@@ -291,30 +291,40 @@ export class ResumeEvaluator {
           }
         ]
 
-        if(isAliyunDashscope){
-          const qwenClient = createQwenClient(api.openrouterApiKey,api.baseUrl)
+        response = await openai.chat.completions.create({
+          model: model,
+          max_completion_tokens: api.maxTokens,
+          temperature: api.temperature,
+          messages: messages,
+          stream: false,
+          response_format: {type: 'json_object'}
+        })
+        fullContent = response.choices[0].message.content;
 
-          const qwenMessages:QwenMessage[] = messages as QwenMessage[]
-
-          const qwenRequestParams:QwenRequestParams = {
-            model: model,
-            max_tokens: 16384,
-            temperature: 0.7,
-            messages: qwenMessages,
-            stream: false,
-          }
-          fullContent = await qwenClient.chat(qwenRequestParams)
-        }else{
-          response = await openai.chat.completions.create({
-            model: model,
-            max_completion_tokens: api.maxTokens,
-            temperature: api.temperature,
-            messages: messages,
-            stream: false,
-            response_format:response_format2
-          })
-          fullContent = response.choices[0].message.content;
-        }
+        // if(isAliyunDashscope){
+        //   const qwenClient = createQwenClient(api.openrouterApiKey,api.baseUrl)
+        //
+        //   const qwenMessages:QwenMessage[] = messages as QwenMessage[]
+        //
+        //   const qwenRequestParams:QwenRequestParams = {
+        //     model: model,
+        //     max_tokens: 16384,
+        //     temperature: 0.7,
+        //     messages: qwenMessages,
+        //     stream: false,
+        //   }
+        //   fullContent = await qwenClient.chat(qwenRequestParams)
+        // }else{
+        //   response = await openai.chat.completions.create({
+        //     model: model,
+        //     max_completion_tokens: api.maxTokens,
+        //     temperature: api.temperature,
+        //     messages: messages,
+        //     stream: false,
+        //     response_format:response_format2
+        //   })
+        //   fullContent = response.choices[0].message.content;
+        // }
 
         if (!fullContent) {
           throw new ResumeEvaluatorError('No content in API response')
