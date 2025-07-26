@@ -1,9 +1,9 @@
 // Direct HTTP implementation - OpenAI SDK removed
-import type { APISettings } from '@/hooks/use-settings'
 import OpenAI from 'openai'
 import type { ChatCompletion, ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import type {ResponseFormatJSONSchema} from "openai/resources/shared";
 import { createQwenClient, type QwenClient,type QwenMessage,type QwenRequestParams} from '@/lib/qwen-client'
+import type { APISettings } from '@/hooks/use-settings'
 
 export interface ResumeData {
   fileName: string
@@ -212,24 +212,34 @@ export class ResumeEvaluator {
     }
   }
 
-  async evaluateResume(file: File, apiSettings: APISettings): Promise<ResumeEvaluation> {
+  async evaluateResume(file: File, apiSettings?: any): Promise<ResumeEvaluation> {
+    // Use provided apiSettings or fall back to config
+    const api = apiSettings || {
+      baseUrl: this.config.baseUrl || 'https://api.openai.com/v1',
+      openrouterApiKey: this.config.apiKey,
+      openrouterModel: this.config.model || 'gpt-4o',
+      provider: '',
+      temperature: this.config.temperature || 0.7,
+      maxTokens: this.config.maxTokens || 4096
+    }
+    
     try {
-      const isOpenRouter = apiSettings.baseUrl.includes('openrouter')
-      const isAliyunDashscope = apiSettings.baseUrl.includes('https://dashscope.aliyuncs.com')
+      const isOpenRouter = api.baseUrl.includes('openrouter')
+      const isAliyunDashscope = api.baseUrl.includes('https://dashscope.aliyuncs.com')
 
       // Step 1: Upload file using files.create API
-      const model = isOpenRouter?apiSettings.provider + '/' + apiSettings.openrouterModel:apiSettings.openrouterModel;
+      const model = isOpenRouter?api.provider + '/' + api.openrouterModel:api.openrouterModel;
       const fileModel = isAliyunDashscope?'qwen-long-latest':model
 
 
-      const fileId = await this.uploadLocalFile(apiSettings,file)
+      const fileId = await this.uploadLocalFile(api,file)
       if (!fileId) {
         throw new ResumeEvaluatorError('No file ID returned from upload')
       }
 
       const openai = new OpenAI({
-        apiKey: apiSettings.openrouterApiKey,
-        baseURL: apiSettings.baseUrl,
+        apiKey: api.openrouterApiKey,
+        baseURL: api.baseUrl,
         defaultHeaders: {
           'HTTP-Referer': typeof window !== 'undefined' ? window.location.href : 'chrome-extension://niuma-helper',
           'X-Title': 'Niuma Helper'
@@ -282,7 +292,7 @@ export class ResumeEvaluator {
         ]
 
         if(isAliyunDashscope){
-          const qwenClient = createQwenClient(apiSettings.openrouterApiKey,apiSettings.baseUrl)
+          const qwenClient = createQwenClient(api.openrouterApiKey,api.baseUrl)
 
           const qwenMessages:QwenMessage[] = messages as QwenMessage[]
 
@@ -297,8 +307,8 @@ export class ResumeEvaluator {
         }else{
           response = await openai.chat.completions.create({
             model: model,
-            max_completion_tokens: apiSettings.maxTokens,
-            temperature: apiSettings.temperature,
+            max_completion_tokens: api.maxTokens,
+            temperature: api.temperature,
             messages: messages,
             stream: false,
             response_format:response_format2

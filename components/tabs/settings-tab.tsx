@@ -32,7 +32,9 @@ const llmModelOptions = [
   {provider:'qwen',  value: 'qwen3-235b-a22b-instruct-2507', label: 'qwen3-235b-a22b', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
   {provider:'qwen',  value: 'qwen-turbo-latest', label: 'qwen-turbo-latest', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
   {provider:'qwen',  value: 'qwen-plus-latest', label: 'qwen-plus-latest', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
-  {provider:'deepseek',  value: 'deepseek-chat-v3-0324', label: 'deepseek-chat-v3-0324', baseUrl: 'https://openrouter.ai/api/v1' },
+  {provider:'qwen',  value: 'deepseek-r1', label: 'deepseek-r1(Dashscope)', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
+  {provider:'qwen',  value: 'deepseek-v3', label: 'deepseek-v3(Dashscope)', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
+  {provider:'deepseek',  value: 'deepseek-chat-v3-0324', label: 'deepseek-chat-v3-0324(openrouter)', baseUrl: 'https://openrouter.ai/api/v1' },
   {provider:'moonshotai',  value: 'kimi-k2', label: 'kimi-k2', baseUrl: 'https://openrouter.ai/api/v1' },
 ]
 
