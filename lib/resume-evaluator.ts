@@ -186,6 +186,22 @@ const response_format2:ResponseFormatJSONSchema = {
   }
 }
 
+function removeRedundantContent(content:string) :string{
+  if(content.startsWith('{')&& content.endsWith('}')){
+    return content;
+  }
+  const startIndex = content.indexOf('{');
+  const endIndex = content.lastIndexOf('}');
+  if(startIndex==-1&&endIndex==-1){
+    return content;
+  }
+
+  if(startIndex==0&&endIndex==content.length-1){
+    return content;
+  }
+
+  return content.substring(startIndex, endIndex + 1);
+}
 
 export class ResumeEvaluator {
   private readonly apiEndpoint: string
@@ -299,7 +315,7 @@ export class ResumeEvaluator {
           stream: false,
           response_format: {type: 'json_object'}
         })
-        fullContent = response.choices[0].message.content;
+        fullContent = removeRedundantContent(response.choices[0].message.content as string);
 
         // if(isAliyunDashscope){
         //   const qwenClient = createQwenClient(api.openrouterApiKey,api.baseUrl)
